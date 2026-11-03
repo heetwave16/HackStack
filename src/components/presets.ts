@@ -27,8 +27,8 @@ export const TEXTSWAP_PRESET_OUTPUT: HackStackOutput = {
     primaryEntityName: 'Active Textbook Listings',
     metrics: [
       { label: 'Verified Listings', value: '87', trend: '+12 today' },
-      { label: 'Avg Student Savings', value: '₹1,450', trend: 'Sample value' },
-      { label: 'Escrow Dispute Rate', value: '0.4%', trend: 'NST Pune B-Tech' }
+      { label: 'Avg Student Savings', value: '₹1,450', trend: 'Under retail price' },
+      { label: 'Escrow Dispute Rate', value: 'Target: under 1%', trend: 'NST Pune B-Tech' }
     ],
     columns: ['bookTitle', 'courseCode', 'sellerHostel', 'escrowPrice', 'condition'],
     sampleRows: [
@@ -144,15 +144,15 @@ Scaffolded with **HackStack** (Team Blue10.1 — NST-ADYPU).
       slideNumber: 2,
       title: 'The Problem',
       headline: 'Juniors pay full price for books seniors throw away',
-      bullets: ['College bookstores take 60% margins on buybacks', 'Hostel WhatsApp groups are chaotic, unindexed, and plagued by UPI scams'],
-      speakerNote: 'Highlight that 82% of syllabus books are only used for 14 weeks before being discarded.'
+      bullets: ['College bookstores keep large margins on buybacks', 'Hostel WhatsApp groups are chaotic, unindexed, and plagued by UPI scams'],
+      speakerNote: 'Highlight that many syllabus books are used for one semester and then sit unused.'
     },
     {
       slideNumber: 3,
       title: 'Target Persona',
       headline: '1st & 2nd Year Engineering Students',
       bullets: ['Need mandatory reference texts for calculus, basic EE, and mechanics', 'Sticking to strict semester textbook budgets under ₹2,000'],
-      speakerNote: 'Establish our beachhead: 1,200 incoming freshmen at NST Pune.'
+      speakerNote: 'Establish our beachhead: first-year students at NST Pune.'
     },
     {
       slideNumber: 4,
@@ -232,19 +232,19 @@ Scaffolded with **HackStack** (Team Blue10.1 — NST-ADYPU).
         priority: 1,
         task: 'Implement physical OTP handshake verification in Vitest starter test suite',
         judgingCriteria: 'Feasibility',
-        impactScore: 'High (+25% trust proof)'
+        impactScore: 'High (trust proof)'
       },
       {
         priority: 2,
         task: 'Connect Gemini Vision API to auto-extract ISBN barcode and syllabus match',
         judgingCriteria: 'Use of AI',
-        impactScore: 'High (+30% AI automation)'
+        impactScore: 'High (AI automation)'
       },
       {
         priority: 3,
         task: 'Add hostel block pickup location filters in marketplace search table',
         judgingCriteria: 'Product Thinking',
-        impactScore: 'Medium (+20% UX flow)'
+        impactScore: 'Medium (UX flow)'
       },
       {
         priority: 4,
@@ -269,7 +269,7 @@ export const MEDDRONE_PRESET_OUTPUT: HackStackOutput = {
     primaryEntityName: 'Active Emergency Flight Corridors',
     metrics: [
       { label: 'Active Corridors', value: '8', trend: '3 in-flight' },
-      { label: 'Avg Dispatch Time', value: '6.2 min', trend: 'Sample value' },
+      { label: 'Avg Dispatch Time', value: '6.2 min', trend: 'Target: under 10 min' },
       { label: 'Payload Temp Range', value: '3.8°C', trend: 'Optimal Cold-Chain' }
     ],
     columns: ['missionId', 'hospitalTarget', 'payloadType', 'flightAltitude', 'etaMinutes', 'status'],
@@ -388,9 +388,9 @@ Scaffolded with **HackStack** (Team Blue10.1 — NST-ADYPU).
     {
       slideNumber: 2,
       title: 'The Problem',
-      headline: 'Traffic congestion delays 38% of golden-hour trauma supplies',
+      headline: 'Traffic congestion delays golden-hour trauma supplies',
       bullets: ['Rare blood group matches often sit in peripheral storage', 'Road ambulances lose up to 40 minutes in urban bottlenecks'],
-      speakerNote: 'Frame the stakes: during severe hemorrhages, every 5-minute delay increases mortality by 18%.'
+      speakerNote: 'Frame the stakes: during severe hemorrhages, every minute of delay during a severe hemorrhage matters.'
     },
     {
       slideNumber: 3,
@@ -477,19 +477,19 @@ Scaffolded with **HackStack** (Team Blue10.1 — NST-ADYPU).
         priority: 1,
         task: 'Implement cold-chain temperature threshold test in Vitest starter suite',
         judgingCriteria: 'Feasibility',
-        impactScore: 'High (+25% safety validation)'
+        impactScore: 'High (safety validation)'
       },
       {
         priority: 2,
         task: 'Wire Gemini AI to process real-time micro-weather wind telemetry',
         judgingCriteria: 'Use of AI',
-        impactScore: 'High (+30% AI intelligence)'
+        impactScore: 'High (AI intelligence)'
       },
       {
         priority: 3,
         task: 'Design rooftop helipad QR-code landing verification interface',
         judgingCriteria: 'Product Thinking',
-        impactScore: 'Medium (+20% operations)'
+        impactScore: 'Medium (operations)'
       },
       {
         priority: 4,
