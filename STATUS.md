@@ -1,7 +1,7 @@
 # HackStack Project Status (Team Blue10.1 — NST-ADYPU)
 **Freeze Target**: Nov 5, 2026 at 4:00 PM IST (70h Fast Lane)  
 **Live URL**: `https://hack-stack-sooty.vercel.app`  
-**Current Phase**: Slice 4 Complete — Studio UI, Multi-Preset Engine & Teammate Handoff Locked
+**Current Phase**: Slice 4 Complete — Studio UI, Multi-Preset Engine & Teammate Handoff Locked. Heet-1 takeover pass (Aryan + Parv slices built, tab redesigns pushed) awaiting compile verification (see Section 6).
 
 ---
 
@@ -12,7 +12,7 @@
 | **Step 1** | Scope, Rules & Plan Lock | All | ✅ Complete | `PLAN.md`, `GEMINI.md`, `README.md` committed |
 | **Step 2** | AI JSON Contract Spike | Heet / All | ✅ Complete | `spikes/ai-json-spike.mjs` passed 8/8 assertions with fallback across Gemini models (avg 20.75s) |
 | **Step 3** | Walking Skeleton & Shared Contract | Heet | ✅ Complete | `src/types/hackstack.ts`, `STATUS.md`, `src/app/layout.tsx`, `src/app/page.tsx` |
-| **Step 4** | Parallel Slice Execution | Aryan / Parv / Heet | 🚀 Active | **Slice 4 (Heet)**: ✅ Complete.<br/>**Slice 2 (Aryan)**: ⏳ Queued.<br/>**Slice 3 (Parv)**: ⏳ Queued. |
+| **Step 4** | Parallel Slice Execution | Aryan / Parv / Heet | 🚀 Active | **Slice 4 (Heet)**: ✅ Complete.<br/>**Heet-1 (Heet)**: 🛠️ Studio pass plus tab redesigns on `heet-1`, see Section 6. Not compiled.<br/>**Slice 2 (Aryan)**: 🛠️ Built on `heet-1` (commit `986c9ea`), not compiled.<br/>**Slice 3 (Parv)**: 🛠️ Built on `heet-1` (commit `9f5dc0d`), not compiled. |
 | **Step 5** | Integration, Polish & Freeze | All | ⏳ Queued | End-to-end rehearsal on Vercel preview |
 
 ---
@@ -33,12 +33,12 @@
 ### Slice 2: BYOK AI Engine, Prompts & 10-Prompt Evaluation Set
 - **Owner**: Aryan
 - **Files Owned**: `src/app/api/generate/route.ts`, `src/lib/prompts.ts`, `src/lib/eval-prompts.json`
-- **Status**: ⏳ Queued for Step 4. Ready to build per Teammate Integration Guide below.
+- **Status**: 🛠️ Built on `heet-1` (commit `986c9ea`) during the takeover pass. Not compiled or run against a live model.
 
 ### Slice 3: Golden Template, Validator & 1-Click ZIP Eject
 - **Owner**: Parv
 - **Files Owned**: `src/templates/*`, `src/lib/validator.ts`, `src/lib/packager.ts`
-- **Status**: ⏳ Queued for Step 4. Ready to build per Teammate Integration Guide below.
+- **Status**: 🛠️ Built on `heet-1` (commits `986c9ea` for the validator and `9f5dc0d` for the template and packager). `CodeTab` now calls `downloadHackStackZip`. Not compiled.
 
 ### Slice 4: Interactive Live Preview, 10-Slide Deck & 60s Demo Kit
 - **Owner**: Heet
@@ -68,6 +68,7 @@
 - `npm run lint`: ✅ PASS (0 warnings, 0 errors)
 - `npm run build`: ✅ PASS (4/4 static pages generated cleanly in Next.js 15.5)
 - Boundaries: ✅ PASS (zero files in `src/app/api/generate`, `src/lib`, or `src/templates`)
+- **Note**: The entries above were recorded before the `heet-1` takeover commits. They do not cover the current `heet-1` tree. See Section 6.
 
 ---
 
@@ -133,12 +134,7 @@ This guide specifies the exact contracts, signatures, and insertion points so Ar
    }
    ```
 3. **Frontend Plug-In Point in `src/components/CodeTab.tsx`**:
-   Around line 105 in `src/components/CodeTab.tsx`, replace the inline JSZip fallback with your packager:
-   ```ts
-   // [PARV SLICE 3 PLUG-IN]: Replace inline zip builder with downloadHackStackZip(data) from '@/lib/packager'
-   // import { downloadHackStackZip } from '@/lib/packager';
-   // await downloadHackStackZip(data);
-   ```
+   `CodeTab` now imports `downloadHackStackZip` from `@/lib/packager` and calls it from the eject button. The inline zip builder has been removed.
 4. **Validator Interface (`src/lib/validator.ts`)**:
    Export a Zod-backed validator:
    ```ts
@@ -147,3 +143,24 @@ This guide specifies the exact contracts, signatures, and insertion points so Ar
    export function validateHackStackOutput(data: unknown): { success: boolean; data?: HackStackOutput; errors?: string[] }
    ```
    Aryan's `POST /api/generate` route will call this validator before returning data to the frontend.
+
+---
+
+## 6. Heet-1 Changes (branch `heet-1`)
+- **Studio shell**: Restyled header, model picker with BYOK key and optional custom endpoint, numbered intake rail, and a single emerald accent. Uses the existing `#090D16` / `#10B981` / `#F8FAFC` tokens.
+- **Architecture graph** (`src/components/NodeGraph.tsx`): Brief, Router, Schema and API, Live preview, Deck, and Demo nodes. Clicking a node opens its tab.
+- **Shortcuts and sharing**: Ctrl/Cmd+Enter generates. Header shows the last run's latency and whether it came from the live model, an offline build, or a preset. The URL carries `?preset=<id>` for matching presets, and a button copies the studio link.
+- **Model list**: Gemini 3.1 Flash-Lite, 3.5 Flash, 3.8 Flash, GPT-4o mini, and a custom OpenAI-compatible endpoint. If the live call fails, the studio shows the reason and falls back to an offline build.
+- **Offline synthesizer** (`src/components/offline-synth.ts`): Builds a complete output (schema, routes, tests, README, 10 slides, demo script, checklist) client-side for custom ideas. Matching preset ideas reuse the preset's output.
+- **Takeover commits on `heet-1`**:
+  - `986c9ea`: Aryan's slice (`/api/generate` route, prompts, eval set, validator).
+  - `9f5dc0d`: Parv's slice (golden template, packager, CodeTab wiring).
+  - `3ed8741`: PitchTab redesign.
+  - `e082499`: PreviewTab redesign.
+  - `7674280`: DemoTab redesign, checklist double-toggle fix, timeout moved out of state update.
+  - `349be5a`: CodeTab badges flattened, glow shadows removed, unverified "Compile Check Passed" and "Validated Syntax" claims removed.
+- **Known issues**:
+  - Custom OpenAI-compatible option sends the placeholder model id `openai-compatible`, which the route rejects with HTTP 400. The user must enter a real model id.
+  - Metric counter fix and status-regex change are untested in a browser.
+  - Screen recording and ZIP download are untested in a browser.
+- **Verification**: Not run for this pass. `npx tsc --noEmit`, `npm run lint`, and `npm run build` were not run on the `heet-1` tree, and the environment used for this pass cannot compile the HackStack repo. Run all three locally before merging.
