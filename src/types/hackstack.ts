@@ -89,7 +89,7 @@ export const FALLBACK_HACKSTACK_RESULT: HackStackOutput = {
     primaryEntityName: 'Active Hostel Order Pools',
     metrics: [
       { label: 'Active Order Pools', value: '14', trend: '+4 tonight' },
-      { label: 'Avg Split Settlement', value: '42 sec', trend: '98% instant UPI' },
+      { label: 'Avg Split Settlement', value: '42 sec', trend: 'Sample value' },
       { label: 'Delivery Fees Saved', value: '₹4,850', trend: 'NST Hostel B' }
     ],
     columns: ['poolName', 'hostelWing', 'totalAmount', 'status'],

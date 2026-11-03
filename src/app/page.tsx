@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   AlertTriangle,
@@ -29,6 +29,7 @@ import { synthesizeCustomHackStack } from '@/components/offline-synth';
 import NodeGraph from '@/components/NodeGraph';
 import type { StudioTab } from '@/components/NodeGraph';
 import PreviewTab from '@/components/PreviewTab';
+import { toStudioResult } from '@/lib/studio-result';
 import CodeTab from '@/components/CodeTab';
 import PitchTab from '@/components/PitchTab';
 import DemoTab from '@/components/DemoTab';
@@ -230,6 +231,16 @@ export default function HackStackStudioPage() {
 
   const latencyLabel = latencyMs === null ? 'No run yet' : `${(latencyMs / 1000).toFixed(1)}s`;
   const sourceLabel = resultSource === 'live' ? 'Live model' : resultSource === 'offline' ? 'Offline build' : 'Preset';
+  const studioResult = useMemo(
+    () =>
+      toStudioResult(data, {
+        id: activePreset?.id ?? 'custom',
+        source: resultSource === 'live' ? 'live' : resultSource === 'offline' ? 'offline' : 'cached',
+        latencyMs,
+        entity: activePreset?.entity
+      }),
+    [data, activePreset, resultSource, latencyMs]
+  );
   const NoticeIcon = notice ? NOTICE_ICON[notice.tone] : null;
 
   return (
@@ -443,7 +454,7 @@ export default function HackStackStudioPage() {
             </div>
 
             <div role="tabpanel" className="pt-6">
-              {activeTab === 'preview' && <PreviewTab data={data} />}
+              {activeTab === 'preview' && <PreviewTab result={studioResult} />}
               {activeTab === 'code' && <CodeTab data={data} />}
               {activeTab === 'pitch' && <PitchTab data={data} />}
               {activeTab === 'demo' && <DemoTab data={data} />}

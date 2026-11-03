@@ -1,13 +1,17 @@
 import { HackStackOutput, FALLBACK_HACKSTACK_RESULT } from '@/types/hackstack';
+import type { EntityOverride } from '@/lib/studio-result';
+import { synthesizeCustomHackStack } from '@/components/offline-synth';
 
 export interface HackStackPreset {
-  id: 'campussplit' | 'textswap' | 'meddrone';
+  id: string;
   name: string;
   badge: string;
   ideaText: string;
   stack: string;
   features: string;
   output: HackStackOutput;
+  /** Optional rendering hints (labels, types, status tones). Data only. */
+  entity?: EntityOverride;
 }
 
 export const TEXTSWAP_PRESET_OUTPUT: HackStackOutput = {
@@ -23,7 +27,7 @@ export const TEXTSWAP_PRESET_OUTPUT: HackStackOutput = {
     primaryEntityName: 'Active Textbook Listings',
     metrics: [
       { label: 'Verified Listings', value: '87', trend: '+12 today' },
-      { label: 'Avg Student Savings', value: '₹1,450', trend: '68% off retail' },
+      { label: 'Avg Student Savings', value: '₹1,450', trend: 'Sample value' },
       { label: 'Escrow Dispute Rate', value: '0.4%', trend: 'NST Pune B-Tech' }
     ],
     columns: ['bookTitle', 'courseCode', 'sellerHostel', 'escrowPrice', 'condition'],
@@ -265,7 +269,7 @@ export const MEDDRONE_PRESET_OUTPUT: HackStackOutput = {
     primaryEntityName: 'Active Emergency Flight Corridors',
     metrics: [
       { label: 'Active Corridors', value: '8', trend: '3 in-flight' },
-      { label: 'Avg Dispatch Time', value: '6.2 min', trend: '74% faster than ambulance' },
+      { label: 'Avg Dispatch Time', value: '6.2 min', trend: 'Sample value' },
       { label: 'Payload Temp Range', value: '3.8°C', trend: 'Optimal Cold-Chain' }
     ],
     columns: ['missionId', 'hospitalTarget', 'payloadType', 'flightAltitude', 'etaMinutes', 'status'],
@@ -497,6 +501,34 @@ Scaffolded with **HackStack** (Team Blue10.1 — NST-ADYPU).
   }
 };
 
+
+const LABSLOT_IDEA = 'Lab equipment booking for engineering colleges so students reserve oscilloscopes and 3D printers by the hour.';
+
+export const LABSLOT_PRESET_OUTPUT: HackStackOutput = {
+  ...synthesizeCustomHackStack({
+    idea: LABSLOT_IDEA,
+    stack: 'Next.js + Node + Postgres',
+    features: ['Hourly slots', 'Lab assistant approval', 'No-show tracking']
+  }),
+  projectName: 'LabSlot',
+  tagline: LABSLOT_IDEA,
+  previewApp: {
+    primaryEntityName: 'Equipment bookings',
+    metrics: [
+      { label: 'Bookings today', value: '23', trend: 'Sample value' },
+      { label: 'Machines listed', value: '41', trend: 'Sample value' },
+      { label: 'Awaiting approval', value: '5', trend: 'Sample value' }
+    ],
+    columns: ['bookingId', 'equipment', 'labRoom', 'slotHours', 'deposit', 'status'],
+    sampleRows: [
+      { bookingId: 'LS-112', equipment: 'Rigol DS1054Z oscilloscope', labRoom: 'ECE Lab 2', slotHours: '2', deposit: '₹100', status: 'Approved' },
+      { bookingId: 'LS-113', equipment: 'Prusa MK4 3D printer', labRoom: 'Maker Space', slotHours: '4', deposit: '₹250', status: 'Pending review' },
+      { bookingId: 'LS-114', equipment: 'Soldering station', labRoom: 'ECE Lab 1', slotHours: '1', deposit: '₹50', status: 'No-show' }
+    ],
+    quickActionLabel: 'Book equipment'
+  }
+};
+
 export const BUILT_IN_PRESETS: HackStackPreset[] = [
   {
     id: 'campussplit',
@@ -525,5 +557,20 @@ export const BUILT_IN_PRESETS: HackStackPreset[] = [
     features: 'Corridor Routing, Cold-Chain Telemetry, Emergency Dispatch',
     output: MEDDRONE_PRESET_OUTPUT
   }
+,
+  {
+    id: 'labslot',
+    name: 'LabSlot',
+    badge: 'Lab Equipment Booking',
+    ideaText: LABSLOT_IDEA,
+    stack: 'Next.js + Node + Postgres',
+    features: 'Hourly slots, Lab assistant approval, No-show tracking',
+    output: LABSLOT_PRESET_OUTPUT,
+    entity: {
+      fields: {
+        slotHours: { label: 'Hours', type: 'number' },
+        status: { toneMap: { approved: 'success', 'no-show': 'danger', pending: 'warning' } }
+      }
+    }
+  }
 ];
-
