@@ -1,22 +1,31 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { SYSTEM_PROMPT, buildUserPrompt } from '@/lib/prompts';
+import { HACKSTACK_SYSTEM_PROMPT, buildHackStackUserPrompt } from '@/lib/prompts';
 import { validateHackStackOutput } from '@/lib/validator';
+import { FALLBACK_HACKSTACK_RESULT, type HackStackInput, type HackStackOutput } from '@/types/hackstack';
 
+export const maxDuration = 60;
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MODEL_TIMEOUT_MS = 35_000;
 
+const GEMINI_FALLBACK_CHAIN = [
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.5-flash',
+  'gemini-2.5-flash'
+];
+
 const requestSchema = z.object({
-  idea: z.string().trim().min(10).max(800),
-  stack: z.string().trim().min(1).max(120),
-  features: z.array(z.string().trim().min(1).max(80)).max(10),
+  idea: z.string().trim().min(1).max(2000),
+  stack: z.string().trim().max(200).optional().default('Next.js + Node + Postgres'),
+  features: z.array(z.string().trim().max(200)).optional().default([]),
   modelConfig: z
     .object({
       provider: z.enum(['gemini', 'openai-compatible']),
       modelId: z.string().trim().min(1).max(120),
-      apiKey: z.string().max(300).default(''),
+      apiKey: z.string().max(500).default(''),
       baseUrl: z.string().trim().url().optional()
     })
     .optional()
@@ -24,102 +33,228 @@ const requestSchema = z.object({
 
 type ModelConfig = NonNullable<z.infer<typeof requestSchema>['modelConfig']>;
 
-function extractJson(text: string): unknown {
-  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-  return JSON.parse(cleaned);
+function cleanAndParseJson(text: string): unknown {
+  if (!text) throw new Error('Empty response from model');
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.replace(/^```json\s*/i, '').replace(/\s*```$/, '');
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+  }
+  cleaned = cleaned.trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    let inString = false;
+    let escaped = false;
+    let result = '';
+    for (let i = 0; i < cleaned.length; i++) {
+      const ch = cleaned[i];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+          result += ch;
+        } else if (ch === '\\') {
+          escaped = true;
+          result += ch;
+        } else if (ch === '"') {
+          inString = false;
+          result += ch;
+        } else if (ch === '\n') {
+          result += '\\n';
+        } else if (ch === '\r') {
+          result += '\\r';
+        } else if (ch === '\t') {
+          result += '\\t';
+        } else if (ch.charCodeAt(0) < 32) {
+          result += ' ';
+        } else {
+          result += ch;
+        }
+      } else {
+        if (ch === '"') inString = true;
+        result += ch;
+      }
+    }
+    return JSON.parse(result);
+  }
 }
 
-async function callGemini(config: ModelConfig, apiKey: string, prompt: string): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.modelId)}:generateContent`;
+async function callGemini(modelId: string, apiKey: string, prompt: string): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    headers: {
+      'Content-Type': 'application/json'
+    },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      systemInstruction: { parts: [{ text: HACKSTACK_SYSTEM_PROMPT }] },
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.7 }
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.4
+      }
     }),
     signal: AbortSignal.timeout(MODEL_TIMEOUT_MS)
   });
-  if (!response.ok) throw new Error(`Gemini returned ${response.status}`);
-  const json = (await response.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    const error = new Error(`Gemini ${modelId} HTTP ${response.status}: ${errorText.slice(0, 150)}`);
+    (error as Error & { status: number }).status = response.status;
+    throw error;
+  }
+
+  const json = (await response.json()) as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+  };
   const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Gemini returned no content');
+  if (!text) throw new Error(`Gemini ${modelId} returned no candidate text`);
   return text;
 }
 
 async function callOpenAICompatible(config: ModelConfig, apiKey: string, prompt: string): Promise<string> {
   const base = (config.baseUrl ?? 'https://api.openai.com/v1').replace(/\/+$/, '');
-  const response = await fetch(`${base}/chat/completions`, {
+  const url = base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
+
+  const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
     body: JSON.stringify({
       model: config.modelId,
-      temperature: 0.7,
+      temperature: 0.4,
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: HACKSTACK_SYSTEM_PROMPT },
         { role: 'user', content: prompt }
       ]
     }),
     signal: AbortSignal.timeout(MODEL_TIMEOUT_MS)
   });
-  if (!response.ok) throw new Error(`model endpoint returned ${response.status}`);
-  const json = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`OpenAI-compatible HTTP ${response.status}: ${errorText.slice(0, 150)}`);
+  }
+
+  const json = (await response.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
   const text = json.choices?.[0]?.message?.content;
-  if (!text) throw new Error('model endpoint returned no content');
+  if (!text) throw new Error('OpenAI-compatible returned empty message content');
   return text;
 }
 
-function resolveKey(config: ModelConfig): string | null {
-  if (config.apiKey) return config.apiKey;
-  if (config.provider === 'gemini') return process.env.GEMINI_API_KEY ?? null;
-  return process.env.OPENAI_API_KEY ?? null;
+function resolveApiKey(config: ModelConfig): string | null {
+  if (config.apiKey && config.apiKey.trim().length > 0) return config.apiKey.trim();
+  if (config.provider === 'gemini') {
+    return process.env.GEMINI_API_KEY?.trim() || null;
+  }
+  return process.env.OPENAI_API_KEY?.trim() || null;
+}
+
+function buildFallbackResponse(reason: string): HackStackOutput {
+  return {
+    ...FALLBACK_HACKSTACK_RESULT,
+    validation: {
+      ...FALLBACK_HACKSTACK_RESULT.validation,
+      usedFallback: true,
+      modelUsed: `fallback (${reason})`
+    }
+  };
 }
 
 export async function POST(request: Request) {
-  const parsedBody = requestSchema.safeParse(await request.json().catch(() => null));
+  const rawBody = await request.json().catch(() => null);
+  const parsedBody = requestSchema.safeParse(rawBody);
+
   if (!parsedBody.success) {
-    return NextResponse.json({ error: 'invalid request' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Invalid HackStack input', details: parsedBody.error.flatten() },
+      { status: 400 }
+    );
   }
-  const input = parsedBody.data;
+
+  const input: HackStackInput = parsedBody.data;
   const config: ModelConfig = input.modelConfig ?? {
     provider: 'gemini',
     modelId: 'gemini-3.5-flash',
     apiKey: ''
   };
 
-  if (config.modelId === 'openai-compatible') {
-    return NextResponse.json({ error: 'pick a named model or enter one' }, { status: 400 });
-  }
-
-  const apiKey = resolveKey(config);
+  const apiKey = resolveApiKey(config);
   if (!apiKey) {
-    return NextResponse.json({ error: 'no API key available' }, { status: 503 });
+    return NextResponse.json(buildFallbackResponse('no API key provided'));
   }
 
-  const prompt = buildUserPrompt(input);
-  try {
-    const text =
-      config.provider === 'gemini'
-        ? await callGemini(config, apiKey, prompt)
-        : await callOpenAICompatible(config, apiKey, prompt);
-    const checked = validateHackStackOutput({
-      ...(extractJson(text) as object),
-      validation: {
-        schemaValid: true,
-        compileCheckPassed: false,
-        usedFallback: false,
-        modelUsed: config.modelId
+  const prompt = buildHackStackUserPrompt(input);
+
+  if (config.provider === 'openai-compatible') {
+    try {
+      const text = await callOpenAICompatible(config, apiKey, prompt);
+      const parsedJson = cleanAndParseJson(text);
+      const checked = validateHackStackOutput({
+        ...(parsedJson as object),
+        validation: {
+          schemaValid: true,
+          compileCheckPassed: false,
+          usedFallback: false,
+          modelUsed: config.modelId
+        }
+      });
+
+      if (checked.success) {
+        return NextResponse.json(checked.data);
       }
-    });
-    if (!checked.success) {
-      return NextResponse.json({ error: 'model output failed validation', details: checked.errors.slice(0, 5) }, { status: 502 });
+      return NextResponse.json(buildFallbackResponse('validation failed on model output'));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'openai-compatible request failed';
+      console.warn('OpenAI-compatible failed, using fallback:', msg);
+      return NextResponse.json(buildFallbackResponse(msg));
     }
-    return NextResponse.json(checked.data);
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : 'unknown error';
-    console.error('generate failed:', reason);
-    return NextResponse.json({ error: 'model call failed' }, { status: 502 });
   }
+
+  // Gemini provider with fallback loop
+  const candidateModels = Array.from(
+    new Set([config.modelId, ...GEMINI_FALLBACK_CHAIN].filter(Boolean))
+  );
+
+  for (let i = 0; i < candidateModels.length; i++) {
+    const model = candidateModels[i];
+    try {
+      const text = await callGemini(model, apiKey, prompt);
+      const parsedJson = cleanAndParseJson(text);
+      const checked = validateHackStackOutput({
+        ...(parsedJson as object),
+        validation: {
+          schemaValid: true,
+          compileCheckPassed: false,
+          usedFallback: false,
+          modelUsed: model
+        }
+      });
+
+      if (checked.success) {
+        return NextResponse.json(checked.data);
+      }
+
+      console.warn(`Gemini output on ${model} failed schema validation:`, checked.errors.slice(0, 3));
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`Gemini model ${model} failed (status ${status || 'unknown'}): ${message}`);
+
+      // Retry / fallback on 404, 429, 503 or generic network error
+      const isRecoverable = !status || [404, 429, 500, 503].includes(status);
+      if (!isRecoverable && i === 0 && candidateModels.length === 1) {
+        break;
+      }
+    }
+  }
+
+  return NextResponse.json(buildFallbackResponse('all candidate models failed'));
 }

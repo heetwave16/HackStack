@@ -1,12 +1,122 @@
 [
-  "Peer-to-peer textbook exchange with UPI escrow for engineering students. Students list used books and release payment only after the buyer confirms receipt.",
-  "AI study buddy for late night exams that quizzes students on their own lecture notes and tracks weak topics.",
-  "Hostel food pooling app where students on the same floor combine late-night delivery orders to avoid fees.",
-  "Lost and found board for a college campus with photo uploads and a claim flow verified by student ID.",
-  "Group project tracker that splits tasks among teammates and nudges people before a submission deadline.",
-  "Drone dispatch coordinator that routes medical supplies to rural clinics and tracks delivery status in real time.",
-  "Club event RSVP and attendance app with QR check-in and a post-event feedback form.",
-  "Carpool matcher for commuters travelling the same route to a city campus, with fare splitting.",
-  "Mental wellness check-in for students that logs daily mood and suggests a short breathing exercise.",
-  "Local tutoring marketplace where senior students offer paid one-hour sessions in subjects they already passed."
+  {
+    "id": "eval-1",
+    "title": "NST Textbook Escrow",
+    "idea": "Peer-to-peer textbook exchange for NST Pune students with UPI escrow and ISBN barcode scanning to ensure book condition before payout release.",
+    "stack": "Next.js + Node + Postgres",
+    "features": [
+      "UPI Escrow Hold & Release",
+      "ISBN Barcode Metadata Fetch",
+      "Hostel Wing Pickup Scheduling",
+      "Book Condition Photo Dispute"
+    ]
+  },
+  {
+    "id": "eval-2",
+    "title": "Campus Shuttle Tracker",
+    "idea": "Real-time crowdsourced shuttle tracking connecting college gates to remote hostel blocks with live ETA predictions.",
+    "stack": "Next.js + Fastify + Postgres",
+    "features": [
+      "Live GPS Ping Aggregator",
+      "Driver Shift Countdown",
+      "Crowd Density Estimator",
+      "Emergency Gate Alert"
+    ]
+  },
+  {
+    "id": "eval-3",
+    "title": "Medical Drone Dispatch",
+    "idea": "Autonomous drone dispatch coordinator that routes critical antivenom and emergency blood packs between rural primary healthcare clinics.",
+    "stack": "Next.js + Go + Postgres",
+    "features": [
+      "Waypoint Route Optimizer",
+      "Payload Temperature Monitor",
+      "Live Flight Telemetry Feed",
+      "Clinic Handoff QR Scanner"
+    ]
+  },
+  {
+    "id": "eval-4",
+    "title": "Hostel Laundry Pool",
+    "idea": "Smart queue and slot booking system for hostel shared washing machines with automated WhatsApp pickup reminders.",
+    "stack": "Next.js + Node + Postgres",
+    "features": [
+      "Machine Cycle Countdown",
+      "Ghost-Reservation Auto-Cancel",
+      "Detergent Barter Board",
+      "WhatsApp Twilio Alerts"
+    ]
+  },
+  {
+    "id": "eval-5",
+    "title": "Late Night Lab Seat Booking",
+    "idea": "GPU workstation reservation platform for deep learning semester projects with automatic idle-time forfeiture.",
+    "stack": "Next.js + Python + Postgres",
+    "features": [
+      "GPU VRAM Allocation Matrix",
+      "Card Reader ID Check-in",
+      "Idle Session Auto-Reclaim",
+      "Fair-Share Queue Balancer"
+    ]
+  },
+  {
+    "id": "eval-6",
+    "title": "AI Blockchain Pet Rock",
+    "idea": "Virtual pet rock that mints mood NFTs based on ambient weather and insults the owner in haiku if ignored for 24 hours.",
+    "stack": "Next.js + Solidity + Postgres",
+    "features": [
+      "Weather-Driven Mood Oracle",
+      "Automated Haiku Roaster",
+      "Proof-of-Neglect Smart Contract",
+      "Sedimentary Evolution Tree"
+    ]
+  },
+  {
+    "id": "eval-7",
+    "title": "Midnight Snack Barter",
+    "idea": "Hostel emergency trade network where students swap instant noodles, coffee sachets, and phone chargers past 2 AM.",
+    "stack": "Next.js + Node + Postgres",
+    "features": [
+      "Midnight Inventory Board",
+      "Room-to-Room Micro Barter",
+      "IOU Karma Tracker",
+      "Hostel Floor Emergency Ping"
+    ]
+  },
+  {
+    "id": "eval-8",
+    "title": "Blink-To-Code Accessibility",
+    "idea": "Assistive IDE extension that maps webcam blink patterns and head gestures to syntax templates for motor-impaired engineers.",
+    "stack": "Next.js + WebAssembly + Postgres",
+    "features": [
+      "Webcam Eye-Tracker Pipeline",
+      "Gesture Macro Expander",
+      "Audio Syntax Confirmation",
+      "Emergency Hands-Free Pause"
+    ]
+  },
+  {
+    "id": "eval-9",
+    "title": "Campus Ghost Story Network",
+    "idea": "Geofenced audio horror library that unlocks eerie student folklore audio recordings only when standing at specific campus coordinates past midnight.",
+    "stack": "Next.js + Node + Postgres",
+    "features": [
+      "Geofenced Proximity Unlocks",
+      "Spatial Ambient Audio Player",
+      "Anonymous Tale Submissions",
+      "Midnight Curfew Warning System"
+    ]
+  },
+  {
+    "id": "eval-10",
+    "title": "Mess Food Calorie Gambler",
+    "idea": "Computer vision mess plate scanner that predicts mystery curry nutrition and lets hostel tables bet laundry duty on guessing the meal.",
+    "stack": "Next.js + PyTorch + Postgres",
+    "features": [
+      "Mystery Gravy Food Classifier",
+      "Table Chore Betting Ledger",
+      "Digestive Risk Index",
+      "Hostel Hall of Fame Leaderboard"
+    ]
+  }
 ]
