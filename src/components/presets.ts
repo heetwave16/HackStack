@@ -269,7 +269,7 @@ export const MEDDRONE_PRESET_OUTPUT: HackStackOutput = {
     primaryEntityName: 'Active Emergency Flight Corridors',
     metrics: [
       { label: 'Active Corridors', value: '8', trend: '3 in-flight' },
-      { label: 'Avg Dispatch Time', value: '6.2 min', trend: 'Target: faster than ambulance' },
+      { label: 'Avg Dispatch Time', value: '6.2 min', trend: 'Target: under 10 min' },
       { label: 'Payload Temp Range', value: '3.8°C', trend: 'Optimal Cold-Chain' }
     ],
     columns: ['missionId', 'hospitalTarget', 'payloadType', 'flightAltitude', 'etaMinutes', 'status'],
