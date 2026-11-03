@@ -187,3 +187,22 @@ This guide specifies the exact contracts, signatures, and insertion points so Ar
 - **Unverified:** 1440x900 and 375 px layouts, live API generation, ZIP download, deck keys, recorder.
 
 **Phases 2-8: not started.**
+
+---
+
+## 8. Redesign branch `redesign-ui` (Nov 3, 2026)
+
+**Done:**
+- Branched from `heet-1` at `1bf6868`. PR #4 into `heet-1` is open and not merged.
+- Pushed: page wired to `StudioResult` for Preview (`fc112e9`); Code tab (`c51c24d`), Pitch tab (`e9318ce`), Demo tab (`27f6a44`); type and fallback data cleanup (`bd45f1b`); preset cleanup keeping `LabSlot`, `entity` and `id: string` (`72e0015`); MedDrone trend reworded to fix a failing contract test (`d148ff6`).
+- Verified on a fresh tarball of `redesign-ui`: `npm ci`, `tsc --noEmit`, `npm run lint`, `npm run build`, and `npm test` (vitest 2.1.9, 7/7) all pass.
+
+**Not done:**
+- Phase 2: Code, Pitch and Demo still read `HackStackOutput` directly. They are not yet moved onto `StudioResult`.
+- Local PreviewTab redesign is not pushed. The Phase 1 version on `heet-1` is kept.
+- `src/components/presets.ts` `LabSlot` metrics still say "Sample value", and MedDrone "Avg Dispatch Time 6.2 min" is still a placeholder figure.
+
+**Unverified:**
+- Browser behaviour of the screen recorder, ZIP download, pitch fullscreen and keyboard shortcuts.
+- Live `/api/generate` generation, and 375 px and 1440 px layouts.
+- Nothing has been merged into `heet-1`.
