@@ -1,7 +1,7 @@
 # HackStack Project Status (Team Blue10.1 — NST-ADYPU)
 **Freeze Target**: Nov 5, 2026 at 4:00 PM IST (70h Fast Lane)  
 **Live URL**: `https://hack-stack-sooty.vercel.app`  
-**Current Phase**: Slice 4 Complete — Studio UI, Multi-Preset Engine & Teammate Handoff Locked
+**Current Phase**: Slice 4 Complete — Studio UI, Multi-Preset Engine & Teammate Handoff Locked. Heet-1 studio pass in progress (see Section 6).
 
 ---
 
@@ -12,7 +12,7 @@
 | **Step 1** | Scope, Rules & Plan Lock | All | ✅ Complete | `PLAN.md`, `GEMINI.md`, `README.md` committed |
 | **Step 2** | AI JSON Contract Spike | Heet / All | ✅ Complete | `spikes/ai-json-spike.mjs` passed 8/8 assertions with fallback across Gemini models (avg 20.75s) |
 | **Step 3** | Walking Skeleton & Shared Contract | Heet | ✅ Complete | `src/types/hackstack.ts`, `STATUS.md`, `src/app/layout.tsx`, `src/app/page.tsx` |
-| **Step 4** | Parallel Slice Execution | Aryan / Parv / Heet | 🚀 Active | **Slice 4 (Heet)**: ✅ Complete.<br/>**Slice 2 (Aryan)**: ⏳ Queued.<br/>**Slice 3 (Parv)**: ⏳ Queued. |
+| **Step 4** | Parallel Slice Execution | Aryan / Parv / Heet | 🚀 Active | **Slice 4 (Heet)**: ✅ Complete.<br/>**Heet-1 (Heet)**: 🛠️ Studio pass on `heet-1`, see Section 6.<br/>**Slice 2 (Aryan)**: ⏳ Queued.<br/>**Slice 3 (Parv)**: ⏳ Queued. |
 | **Step 5** | Integration, Polish & Freeze | All | ⏳ Queued | End-to-end rehearsal on Vercel preview |
 
 ---
@@ -147,3 +147,14 @@ This guide specifies the exact contracts, signatures, and insertion points so Ar
    export function validateHackStackOutput(data: unknown): { success: boolean; data?: HackStackOutput; errors?: string[] }
    ```
    Aryan's `POST /api/generate` route will call this validator before returning data to the frontend.
+
+---
+
+## 6. Heet-1 Changes (branch `heet-1`)
+- **Studio shell**: Restyled header, model picker with BYOK key and optional custom endpoint, numbered intake rail, and a single emerald accent. Uses the existing `#090D16` / `#10B981` / `#F8FAFC` tokens.
+- **Architecture graph** (`src/components/NodeGraph.tsx`): Brief, Router, Schema and API, Live preview, Deck, and Demo nodes. Clicking a node opens its tab.
+- **Shortcuts and sharing**: Ctrl/Cmd+Enter generates. Header shows the last run's latency and whether it came from the live model, an offline build, or a preset. The URL carries `?preset=<id>` for matching presets, and a button copies the studio link.
+- **Model list**: Gemini 3.1 Flash-Lite, 3.5 Flash, 3.8 Flash, GPT-4o mini, and a custom OpenAI-compatible endpoint. If the live call fails, the studio shows the reason and falls back to an offline build.
+- **Offline synthesizer** (`src/components/offline-synth.ts`): Builds a complete output (schema, routes, tests, README, 10 slides, demo script, checklist) client-side for custom ideas. Matching preset ideas reuse the preset's output.
+- **Not yet done**: Redesign of the four tab interiors (emoji and gradient cleanup in `PitchTab` and `DemoTab`). Packager wiring in `CodeTab` is waiting on Parv's `src/lib/packager.ts`.
+- **Verification**: Not compiled or linted in this pass. Run `npx tsc --noEmit` and `npm run lint` before merging.
