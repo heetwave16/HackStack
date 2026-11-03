@@ -65,8 +65,20 @@ In this step, we establish the core foundations:
 
 ---
 
-## 5. Upcoming Slices (Steps 4 & 5)
+## 5. Fast-Lane Step 4: Slice 4 Implementation, Modularization & Presets Engine
 
-- **Slice 2 (Aryan)**: Server-side `/api/generate` route, Zod schema validation, BYOK model routing, and 10-prompt evaluation test suite.
-- **Slice 3 (Parv)**: Golden Next.js + Postgres template injection, compilation checks, and client-side ZIP packaging via `jszip`.
-- **Slice 4 (Heet)**: Interactive state on Tab 1 (+Add row), 10-slide deck navigator + Markdown exporter on Tab 3, browser screen recording on Tab 4.
+In Slice 4, Heet transformed the monolithic studio page into a modular, production-ready frontend architecture:
+- **`src/components/PreviewTab.tsx`**: Column-agnostic data table supporting dynamic LLM responses (3, 4, 5+ columns), live multi-column substring filter, metric cards with `#10B981` trend badges, and a dynamic modal dialog using native `<dialog>` that prepends new rows and reactively updates active metrics for instant judge verification.
+- **`src/components/CodeTab.tsx`**: Interactive 5-file explorer (`prisma/schema.prisma`, `src/app/api/main/route.ts`, `tests/starter.test.ts`, `README.md`, `.env.example`), copy button with 2s "Copied!" feedback, and 1-Click Eject (`.zip`) generating `<slug>-hackstack.zip` containing all code files + `PITCH_DECK.md`. Includes clear `[PARV SLICE 3 PLUG-IN]` anchor.
+- **`src/components/PitchTab.tsx`**: 10-slide CoNSTruct pitch carousel with slide thumbnail selector pills (1..10), prev/next controls, arrow keyboard navigation (`←`/`→`), bold headlines, bullet cards, bottom speaker notes panel, and "Export Pitch Deck (.md)" download.
+- **`src/components/DemoTab.tsx`**: 4-part 60s teleprompter script, browser-native screen recorder (`navigator.mediaDevices.getDisplayMedia`) with 60s countdown timer, active segment highlighting, error banner boundary, and `.webm` video download. Includes ranked CoNSTruct "Build Next" rubric checklist with interactive checkboxes, 4 criteria filter pills, and live Judge Readiness Score bar.
+- **`src/components/presets.ts` & `src/app/page.tsx`**: 3 built-in 1-click presets (`CampusSplit AI`, `TextSwap NST`, `MedDrone Dispatch`) with complete, realistic schemas, metrics, tests, slides, and scripts. Animated terminal progress stepper (`[1/4]` to `[4/4]`) on generate, with `[ARYAN SLICE 2 PLUG-IN]` calling `POST /api/generate` with smooth client fallback.
+
+---
+
+## 6. Teammate Handoff & Next Steps (Steps 4 & 5)
+
+- **Slice 2 (Aryan)**: Server-side `POST /api/generate` route, Zod schema validation, BYOK model routing, and 10-prompt evaluation test suite (`src/lib/eval-prompts.json`).
+- **Slice 3 (Parv)**: Golden Next.js + Postgres template injection, compilation checks, and client-side ZIP packaging via `src/lib/packager.ts`.
+- **Step 5 (All)**: Final end-to-end integration rehearsal on Vercel preview ahead of the Nov 5 freeze.
+
