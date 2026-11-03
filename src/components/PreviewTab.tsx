@@ -1,30 +1,51 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, RotateCcw, PlusCircle, X, Sparkles, Database } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Database, PlusCircle, RotateCcw, Search, X } from 'lucide-react';
 import { HackStackOutput, PreviewMetric } from '@/types/hackstack';
 
 interface PreviewTabProps {
   data: HackStackOutput;
 }
 
+const NUMBER_PATTERN = /^([^\d]*?)([\d,]+)(.*)$/;
+
+function bumpLeadingNumber(metric: PreviewMetric, addedCount: number): PreviewMetric {
+  const match = metric.value.match(NUMBER_PATTERN);
+  if (!match) return { ...metric, trend: `+${addedCount} added in this session` };
+  const [, prefix, digits, suffix] = match;
+  const next = Number(digits.replace(/,/g, '')) + 1;
+  return {
+    ...metric,
+    value: `${prefix}${next.toLocaleString('en-US')}${suffix}`,
+    trend: `+${addedCount} added in this session`
+  };
+}
+
 export default function PreviewTab({ data }: PreviewTabProps) {
   const [rows, setRows] = useState<Record<string, string>[]>(data.previewApp.sampleRows);
   const [metrics, setMetrics] = useState<PreviewMetric[]>(data.previewApp.metrics);
+  const [addedCount, setAddedCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<Record<string, string>>({});
   const dialogRef = useRef<HTMLDialogElement>(null);
 
-  // Sync state whenever data changes (e.g., preset switch or new generation)
   useEffect(() => {
     setRows(data.previewApp.sampleRows);
     setMetrics(data.previewApp.metrics);
+    setAddedCount(0);
     setSearchQuery('');
     setFormData({});
   }, [data.projectName, data.previewApp.sampleRows, data.previewApp.metrics]);
 
-  // Open modal using native dialog
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (isModalOpen && !dialog.open) dialog.showModal();
+    if (!isModalOpen && dialog.open) dialog.close();
+  }, [isModalOpen]);
+
   const handleOpenModal = () => {
     const initialData: Record<string, string> = {};
     data.previewApp.columns.forEach((col) => {
@@ -32,21 +53,14 @@ export default function PreviewTab({ data }: PreviewTabProps) {
     });
     setFormData(initialData);
     setIsModalOpen(true);
-    if (dialogRef.current && !dialogRef.current.open) {
-      dialogRef.current.showModal();
-    }
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    if (dialogRef.current && dialogRef.current.open) {
-      dialogRef.current.close();
-    }
-  };
+  const handleCloseModal = () => setIsModalOpen(false);
 
   const handleResetData = () => {
     setRows(data.previewApp.sampleRows);
     setMetrics(data.previewApp.metrics);
+    setAddedCount(0);
     setSearchQuery('');
   };
 
@@ -54,170 +68,114 @@ export default function PreviewTab({ data }: PreviewTabProps) {
     setFormData((prev) => ({ ...prev, [column]: value }));
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleFormSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
 
-    // Fallback values for empty fields
     const completedRow: Record<string, string> = {};
     data.previewApp.columns.forEach((col, idx) => {
-      if (formData[col] && formData[col].trim() !== '') {
-        completedRow[col] = formData[col].trim();
-      } else {
-        completedRow[col] = idx === 0 ? `Custom Entry #${rows.length + 1}` : 'Active / In Progress';
-      }
+      const typed = formData[col]?.trim();
+      completedRow[col] = typed ? typed : idx === 0 ? `Custom entry #${rows.length + 1}` : 'Active / in progress';
     });
 
-    // Prepend new row
+    const nextAddedCount = addedCount + 1;
     setRows((prev) => [completedRow, ...prev]);
-
-    // Increment the primary metric counter for instant live feedback
-    setMetrics((prev) =>
-      prev.map((m, idx) => {
-        if (idx === 0 || m.label.toLowerCase().includes('active') || m.label.toLowerCase().includes('total')) {
-          const numericPart = parseInt(m.value.replace(/[^0-9]/g, ''), 10) || 0;
-          const prefix = m.value.startsWith('₹') ? '₹' : '';
-          return {
-            ...m,
-            value: `${prefix}${numericPart + 1}`,
-            trend: `+${rows.length + 1} live record added`
-          };
-        }
-        return m;
-      })
-    );
-
+    setAddedCount(nextAddedCount);
+    setMetrics((prev) => prev.map((metric, idx) => (idx === 0 ? bumpLeadingNumber(metric, nextAddedCount) : metric)));
     handleCloseModal();
   };
 
-  // Filter rows based on search query across all columns
-  const filteredRows = rows.filter((row) => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    return Object.values(row).some((val) => String(val).toLowerCase().includes(query));
-  });
+  const filteredRows = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter((row) => Object.values(row).some((value) => String(value).toLowerCase().includes(query)));
+  }, [rows, searchQuery]);
 
   return (
-    <div className="max-w-6xl mx-auto flex flex-col gap-6">
-      {/* Header with Title and Quick Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1E293B] pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#F8FAFC]">
-              {data.projectName}
-            </h1>
-            <span className="text-[11px] font-mono text-[#10B981] bg-[#10B981]/10 px-2 py-0.5 rounded border border-[#10B981]/25 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
-              Interactive Prototype
-            </span>
-          </div>
-          <p className="text-xs sm:text-sm text-[#94A3B8] mt-1">{data.tagline}</p>
+    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <div className="flex flex-col gap-4 border-b border-[#1E293B] pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#10B981]">Live preview</p>
+          <h2 className="mt-1 truncate text-xl font-semibold tracking-tight text-[#F8FAFC] sm:text-2xl">{data.projectName}</h2>
+          <p className="mt-1 text-sm text-[#94A3B8]">{data.tagline}</p>
         </div>
-
         <button
           type="button"
           onClick={handleOpenModal}
-          className="self-start sm:self-auto bg-[#10B981] hover:bg-[#10B981]/90 text-[#090D16] font-semibold text-xs sm:text-sm py-2 px-4 rounded-lg flex items-center gap-2 transition active:scale-95 shadow-lg shadow-[#10B981]/20 shrink-0"
+          className="flex shrink-0 items-center gap-2 self-start rounded-md bg-[#10B981] px-4 py-2 text-sm font-semibold text-[#090D16] transition-colors hover:bg-[#34D399] sm:self-auto"
         >
-          <PlusCircle className="w-4 h-4" />
-          {data.previewApp.quickActionLabel || '+ Add Record'}
+          <PlusCircle className="h-4 w-4" aria-hidden="true" />
+          {data.previewApp.quickActionLabel || '+ Add record'}
         </button>
       </div>
 
-      {/* 3 Metric Cards with Emerald Trend Badges */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-[#1E293B] bg-[#1E293B] sm:grid-cols-3">
         {metrics.map((metric, idx) => (
-          <div
-            key={idx}
-            className="bg-[#0F172A] border border-[#1E293B] rounded-xl p-4 flex flex-col gap-1.5 shadow-sm hover:border-[#10B981]/40 transition group"
-          >
-            <span className="text-xs text-[#94A3B8] font-medium group-hover:text-[#CBD5E1] transition">
-              {metric.label}
-            </span>
-            <div className="text-2xl sm:text-3xl font-bold font-mono text-[#F8FAFC] tracking-tight">
-              {metric.value}
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-[#10B981] font-mono mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
-              <span className="truncate">{metric.trend}</span>
-            </div>
+          <div key={`${metric.label}-${idx}`} className="flex flex-col gap-2 bg-[#0D1322] p-5">
+            <dt className="text-xs font-medium text-[#94A3B8]">{metric.label}</dt>
+            <dd className="font-mono text-2xl font-semibold tracking-tight text-[#F8FAFC] sm:text-3xl">{metric.value}</dd>
+            <dd className="truncate font-mono text-[11px] text-[#10B981]">{metric.trend}</dd>
           </div>
         ))}
-      </div>
+      </dl>
 
-      {/* Primary Entity Table & Filter Controls */}
-      <div className="bg-[#0F172A] border border-[#1E293B] rounded-xl overflow-hidden shadow-sm flex flex-col">
-        {/* Table Control Bar */}
-        <div className="px-4 py-3 border-b border-[#1E293B] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0A0F1D]/80">
+      <section className="flex flex-col overflow-hidden rounded-xl border border-[#1E293B] bg-[#0D1322]">
+        <div className="flex flex-col gap-3 border-b border-[#1E293B] bg-[#0A0F1D] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            <Database className="w-4 h-4 text-[#10B981]" />
-            <h3 className="text-xs sm:text-sm font-semibold text-[#F8FAFC] uppercase tracking-wide">
-              {data.previewApp.primaryEntityName}
-            </h3>
-            <span className="text-[11px] font-mono text-[#64748B]">({rows.length} total records)</span>
+            <Database className="h-4 w-4 text-[#10B981]" aria-hidden="true" />
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[#F8FAFC]">{data.previewApp.primaryEntityName}</h3>
+            <span className="font-mono text-[11px] text-[#64748B]">{rows.length} records</span>
           </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Live Search Input */}
-            <div className="relative flex items-center">
-              <Search className="w-3.5 h-3.5 text-[#64748B] absolute left-2.5 pointer-events-none" />
+          <div className="flex items-center gap-2">
+            <label className="relative flex items-center">
+              <span className="sr-only">Filter rows</span>
+              <Search className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-[#64748B]" aria-hidden="true" />
               <input
                 type="text"
-                placeholder="Filter table rows..."
+                placeholder="Filter rows"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-[#131C2E] border border-[#1E293B] rounded-lg pl-8 pr-3 py-1.5 text-xs text-[#F8FAFC] placeholder:text-[#64748B] focus:outline-none focus:border-[#10B981] w-48 sm:w-56 transition font-sans"
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="w-48 rounded-md border border-[#1E293B] bg-[#131C2E] py-1.5 pl-8 pr-3 text-xs text-[#F8FAFC] placeholder:text-[#64748B] transition-colors focus:border-[#10B981] focus:outline-none sm:w-56"
               />
-            </div>
-
-            {/* Reset Button */}
+            </label>
             <button
               type="button"
               onClick={handleResetData}
-              title="Reset to original sample data"
-              className="p-1.5 rounded-lg bg-[#131C2E] border border-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[#10B981]/50 transition flex items-center gap-1 text-xs font-mono"
+              title="Reset to the original sample data"
+              className="flex items-center gap-1.5 rounded-md border border-[#1E293B] bg-[#131C2E] px-2.5 py-1.5 font-mono text-xs text-[#94A3B8] transition-colors hover:border-[#334155] hover:text-[#F8FAFC]"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
               <span className="hidden md:inline">Reset</span>
             </button>
           </div>
         </div>
 
-        {/* Responsive, Column-Agnostic Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-[#131C2E] border-b border-[#1E293B] text-[#94A3B8] font-mono uppercase tracking-wider">
+            <thead className="border-b border-[#1E293B] bg-[#131C2E] font-mono uppercase tracking-wider text-[#94A3B8]">
               <tr>
-                {data.previewApp.columns.map((col, idx) => (
-                  <th key={idx} className="px-4 py-3 font-semibold whitespace-nowrap">
+                {data.previewApp.columns.map((col) => (
+                  <th key={col} scope="col" className="whitespace-nowrap px-4 py-3 font-semibold">
                     {col}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1E293B]/60 font-sans">
+            <tbody className="divide-y divide-[#1E293B]/60">
               {filteredRows.length > 0 ? (
-                filteredRows.map((row, rIdx) => (
-                  <tr key={rIdx} className="hover:bg-[#131C2E]/40 transition group">
-                    {data.previewApp.columns.map((col, cIdx) => {
-                      const val = row[col] || '—';
-                      const isStatus =
-                        col.toLowerCase().includes('status') ||
-                        col.toLowerCase().includes('state') ||
-                        val.toLowerCase().includes('active') ||
-                        val.toLowerCase().includes('delivered') ||
-                        val.toLowerCase().includes('open');
-
+                filteredRows.map((row, rowIndex) => (
+                  <tr key={rowIndex} className="transition-colors hover:bg-[#131C2E]/50">
+                    {data.previewApp.columns.map((col, colIndex) => {
+                      const value = row[col] || '-';
+                      const isStatus = /status|state/i.test(col) || /active|delivered|open|locked|pooling/i.test(value);
                       return (
-                        <td key={cIdx} className="px-4 py-3 text-[#F8FAFC] whitespace-nowrap">
+                        <td key={col} className="whitespace-nowrap px-4 py-3">
                           {isStatus ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 font-mono text-[11px] font-medium">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
-                              {val}
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#10B981]/30 bg-[#10B981]/10 px-2.5 py-0.5 font-mono text-[11px] text-[#10B981]">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
+                              {value}
                             </span>
                           ) : (
-                            <span className={cIdx === 0 ? 'font-medium text-[#F8FAFC]' : 'text-[#CBD5E1]'}>
-                              {val}
-                            </span>
+                            <span className={colIndex === 0 ? 'font-medium text-[#F8FAFC]' : 'text-[#CBD5E1]'}>{value}</span>
                           )}
                         </td>
                       );
@@ -226,8 +184,8 @@ export default function PreviewTab({ data }: PreviewTabProps) {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={data.previewApp.columns.length} className="px-4 py-8 text-center text-[#64748B]">
-                    No records match &quot;{searchQuery}&quot;. Try clearing your search query.
+                  <td colSpan={data.previewApp.columns.length} className="px-4 py-8 text-center text-[#94A3B8]">
+                    No rows match &quot;{searchQuery}&quot;. Clear the filter to see every row.
                   </td>
                 </tr>
               )}
@@ -235,80 +193,71 @@ export default function PreviewTab({ data }: PreviewTabProps) {
           </table>
         </div>
 
-        {/* Footer info bar */}
-        <div className="px-4 py-2 bg-[#0A0F1D]/50 border-t border-[#1E293B] flex items-center justify-between text-[11px] text-[#64748B] font-mono">
+        <div className="flex items-center justify-between border-t border-[#1E293B] bg-[#0A0F1D] px-4 py-2 font-mono text-[11px] text-[#64748B]">
           <span>
             Showing {filteredRows.length} of {rows.length} rows
           </span>
-          <span className="text-[#10B981]">Schema-validated in-memory state</span>
+          <span>In-memory state</span>
         </div>
-      </div>
+      </section>
 
-      {/* Dynamic Quick Action Modal using Native Dialog */}
       <dialog
         ref={dialogRef}
-        aria-labelledby="add-modal-title"
-        className="backdrop:bg-black/80 backdrop:backdrop-blur-sm bg-[#0F172A] border border-[#1E293B] rounded-2xl p-0 w-full max-w-lg text-[#F8FAFC] shadow-2xl overflow-hidden focus:outline-none m-auto"
-        style={{ overscrollBehavior: 'contain' }}
-        onClose={() => setIsModalOpen(false)}
+        aria-labelledby="add-record-title"
+        onClose={handleCloseModal}
+        className="m-auto w-full max-w-lg overflow-hidden rounded-xl border border-[#1E293B] bg-[#0D1322] p-0 text-[#F8FAFC] backdrop:bg-black/70 focus:outline-none"
       >
         {isModalOpen && (
           <div className="flex flex-col">
-            <div className="px-6 py-4 border-b border-[#1E293B] flex items-center justify-between bg-[#131C2E]">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#10B981]" />
-                <h2 id="add-modal-title" className="text-sm font-semibold text-[#F8FAFC]">
-                  {data.previewApp.quickActionLabel || 'Add New Record'}
-                </h2>
-              </div>
+            <div className="flex items-center justify-between border-b border-[#1E293B] bg-[#131C2E] px-6 py-4">
+              <h2 id="add-record-title" className="text-sm font-semibold text-[#F8FAFC]">
+                {data.previewApp.quickActionLabel || 'Add new record'}
+              </h2>
               <button
                 type="button"
                 onClick={handleCloseModal}
-                className="text-[#94A3B8] hover:text-[#F8FAFC] p-1 rounded-lg hover:bg-[#1E293B] transition"
+                aria-label="Close"
+                className="rounded-md p-1 text-[#94A3B8] transition-colors hover:bg-[#1E293B] hover:text-[#F8FAFC]"
               >
-                <X className="w-4 h-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
 
-            <form onSubmit={handleFormSubmit} className="p-6 flex flex-col gap-4">
+            <form onSubmit={handleFormSubmit} className="flex flex-col gap-4 p-6">
               <p className="text-xs text-[#94A3B8]">
-                Provide values for each column of{' '}
-                <strong className="text-[#F8FAFC]">{data.previewApp.primaryEntityName}</strong>. This record will be
-                immediately inserted into local state.
+                Fill in each column of <strong className="text-[#F8FAFC]">{data.previewApp.primaryEntityName}</strong>. The row is added to the top of the table.
               </p>
 
-              <div className="flex flex-col gap-3 max-h-[50vh] overflow-y-auto pr-1">
+              <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto pr-1">
                 {data.previewApp.columns.map((column, idx) => (
-                  <div key={idx} className="flex flex-col gap-1.5">
-                    <label className="text-xs font-mono font-medium text-[#CBD5E1] capitalize">
-                      {column}
-                    </label>
+                  <label key={column} className="flex flex-col gap-1.5">
+                    <span className="font-mono text-xs text-[#CBD5E1]">{column}</span>
                     <input
                       type="text"
                       required={idx === 0}
-                      placeholder={`Enter ${column}...`}
-                      value={formData[column] || ''}
-                      onChange={(e) => handleInputChange(column, e.target.value)}
-                      className="bg-[#090D16] border border-[#1E293B] rounded-lg p-2.5 text-xs text-[#F8FAFC] placeholder:text-[#64748B] focus:outline-none focus:border-[#10B981] font-mono transition"
+                      placeholder={`Enter ${column}`}
+                      value={formData[column] ?? ''}
+                      onChange={(event) => handleInputChange(column, event.target.value)}
+                      className="rounded-md border border-[#1E293B] bg-[#090D16] p-2.5 font-mono text-xs text-[#F8FAFC] placeholder:text-[#64748B] transition-colors focus:border-[#10B981] focus:outline-none"
                     />
-                  </div>
+                  </label>
                 ))}
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#1E293B] mt-2">
+              <div className="mt-2 flex items-center justify-end gap-2.5 border-t border-[#1E293B] pt-4">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="px-4 py-2 rounded-lg border border-[#1E293B] text-xs font-medium text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#131C2E] transition"
+                  className="rounded-md border border-[#1E293B] px-4 py-2 text-xs font-medium text-[#94A3B8] transition-colors hover:bg-[#131C2E] hover:text-[#F8FAFC]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-[#10B981] hover:bg-[#10B981]/90 text-[#090D16] font-semibold text-xs shadow-lg shadow-[#10B981]/20 transition active:scale-95 flex items-center gap-1.5"
+                  className="flex items-center gap-1.5 rounded-md bg-[#10B981] px-4 py-2 text-xs font-semibold text-[#090D16] transition-colors hover:bg-[#34D399]"
                 >
-                  <PlusCircle className="w-3.5 h-3.5" />
-                  Insert Record
+                  <PlusCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                  Insert record
                 </button>
               </div>
             </form>
@@ -318,4 +267,3 @@ export default function PreviewTab({ data }: PreviewTabProps) {
     </div>
   );
 }
-
