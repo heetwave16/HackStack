@@ -1,83 +1,82 @@
 'use client';
 
-import React, { useState } from 'react';
-import {
-  Database,
-  FileCode,
-  Copy,
-  Check,
-  Download,
-  Loader2,
-  Terminal,
-  Cpu
-} from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, Check, Cpu, Copy, Database, Download, FileCode, Loader2, Terminal, X } from 'lucide-react';
 import { HackStackOutput } from '@/types/hackstack';
 import { buildEnvExample, downloadHackStackZip } from '@/lib/packager';
+import { languageFor, TOKEN_CLASS, tokenizeLine } from './code-tokens';
 
 interface CodeTabProps {
   data: HackStackOutput;
 }
 
-type CodeSubTab = 'prisma' | 'api' | 'tests' | 'readme' | 'env';
+interface CodeFile {
+  id: string;
+  folder: string;
+  name: string;
+  icon: typeof Database;
+  description: string;
+  code: string;
+}
 
 export default function CodeTab({ data }: CodeTabProps) {
-  const [activeSubTab, setActiveSubTab] = useState<CodeSubTab>('prisma');
+  const files: CodeFile[] = [
+    {
+      id: 'prisma',
+      folder: 'prisma',
+      name: 'schema.prisma',
+      icon: Database,
+      description: 'PostgreSQL relational schema and models',
+      code: data.codebase.prismaSchema,
+    },
+    {
+      id: 'api',
+      folder: 'src/app/api/main',
+      name: 'route.ts',
+      icon: FileCode,
+      description: 'Next.js App Router API route handler',
+      code: data.codebase.apiRouteCode,
+    },
+    {
+      id: 'tests',
+      folder: 'tests',
+      name: 'starter.test.ts',
+      icon: Check,
+      description: 'Vitest unit test suite (starter)',
+      code: data.codebase.starterTestCode,
+    },
+    {
+      id: 'readme',
+      folder: '',
+      name: 'README.md',
+      icon: FileCode,
+      description: 'Developer setup and quickstart guide',
+      code: data.codebase.readmeMarkdown,
+    },
+    {
+      id: 'env',
+      folder: '',
+      name: '.env.example',
+      icon: Terminal,
+      description: 'Environment variables template',
+      code: buildEnvExample(data.projectName),
+    },
+  ];
+
+  const [activeId, setActiveId] = useState<string>('prisma');
   const [copied, setCopied] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
 
-  const envExampleContent = buildEnvExample(data.projectName);
-
-  const getActiveFile = () => {
-    switch (activeSubTab) {
-      case 'prisma':
-        return {
-          filename: 'prisma/schema.prisma',
-          description: 'PostgreSQL Relational Schema & Models',
-          code: data.codebase.prismaSchema
-        };
-      case 'api':
-        return {
-          filename: 'src/app/api/main/route.ts',
-          description: 'Next.js App Router API Route Handler',
-          code: data.codebase.apiRouteCode
-        };
-      case 'tests':
-        return {
-          filename: 'tests/starter.test.ts',
-          description: 'Vitest Unit Test Suite (Starter)',
-          code: data.codebase.starterTestCode
-        };
-      case 'readme':
-        return {
-          filename: 'README.md',
-          description: 'Developer Setup & Quickstart Guide',
-          code: data.codebase.readmeMarkdown
-        };
-      case 'env':
-        return {
-          filename: '.env.example',
-          description: 'Environment Variables Template',
-          code: envExampleContent
-        };
-    }
-  };
-
-  const activeFile = getActiveFile();
+  const activeFile = files.find((file) => file.id === activeId) ?? files[0];
+  const language = languageFor(activeFile.name);
+  const lines = activeFile.code.split('\n');
+  const filePath = activeFile.folder ? `${activeFile.folder}/${activeFile.name}` : activeFile.name;
 
   const handleCopyCode = async () => {
     try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(activeFile.code);
-      } else if (typeof document !== 'undefined') {
-        const textarea = document.createElement('textarea');
-        textarea.value = activeFile.code;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-      }
+      await navigator.clipboard.writeText(activeFile.code);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      window.setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.warn('Clipboard write failed:', err);
     }
@@ -94,104 +93,147 @@ export default function CodeTab({ data }: CodeTabProps) {
     }
   };
 
-  const fileTabs: { id: CodeSubTab; label: string; icon: typeof Database }[] = [
-    { id: 'prisma', label: 'prisma/schema.prisma', icon: Database },
-    { id: 'api', label: 'src/app/api/main/route.ts', icon: FileCode },
-    { id: 'tests', label: 'tests/starter.test.ts', icon: Check },
-    { id: 'readme', label: 'README.md', icon: FileCode },
-    { id: 'env', label: '.env.example', icon: Terminal }
+  const checks = [
+    { label: 'Schema valid', ok: data.validation.schemaValid, passText: 'Passed', failText: 'Failed' },
+    { label: 'Compile check', ok: data.validation.compileCheckPassed, passText: 'Passed', failText: 'Failed' },
+    { label: 'Source', ok: !data.validation.usedFallback, passText: 'Model output', failText: 'Offline fallback' },
   ];
 
-  return (
-    <div className="max-w-6xl mx-auto flex flex-col gap-6">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#1E293B] pb-4">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#F8FAFC]">
-              Generated Architecture & Starter Tests
-            </h2>
-            <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-[#94A3B8] px-2.5 py-0.5 rounded border border-[#1E293B] bg-[#0F172A]">
-              <Cpu className="w-3 h-3 text-[#10B981]" aria-hidden="true" />
-              {data.validation.modelUsed || 'Golden Preset'}
-            </span>
-          </div>
-          <p className="text-xs sm:text-sm text-[#94A3B8] mt-1">
-            Prisma schema, Next.js App Router handler, starter tests, and environment template.
-          </p>
-        </div>
+  const folders = Array.from(new Set(files.map((file) => file.folder)));
 
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <p className="font-mono text-xs uppercase tracking-wider text-accent">Code</p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-fg sm:text-2xl">Architecture and starter tests</h2>
+          <p className="mt-1 text-sm text-fg-3">Schema, API route, tests, README, and environment template for the starter repo.</p>
+        </div>
         <button
           type="button"
           onClick={handleDownloadZip}
           disabled={isZipping}
-          className="self-start lg:self-auto bg-[#10B981] hover:bg-[#34D399] disabled:opacity-60 text-[#090D16] font-semibold text-xs sm:text-sm py-2 px-4 rounded-md flex items-center gap-2 transition-colors shrink-0"
+          className="inline-flex shrink-0 items-center gap-2 self-start rounded bg-accent px-4 py-2 text-sm font-semibold text-surface-0 transition-colors hover:bg-accent-hover disabled:opacity-60 sm:self-auto"
         >
           {isZipping ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-              <span>Packaging starter repo...</span>
-            </>
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           ) : (
-            <>
-              <Download className="w-4 h-4" aria-hidden="true" />
-              <span>Download starter repo (.zip)</span>
-            </>
+            <Download className="h-4 w-4" aria-hidden="true" />
           )}
+          {isZipping ? 'Packaging starter repo' : 'Download starter repo (.zip)'}
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 bg-[#0F172A] border border-[#1E293B] rounded-md p-1 overflow-x-auto max-w-full scrollbar-none">
-          {fileTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeSubTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveSubTab(tab.id)}
-                aria-pressed={isActive}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono transition-colors shrink-0 ${
-                  isActive
-                    ? 'bg-[#10B981]/15 text-[#10B981] font-semibold'
-                    : 'text-[#94A3B8] hover:text-[#F8FAFC]'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" aria-hidden="true" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="flex flex-col gap-5">
+          <nav aria-label="Project files" className="flex flex-col gap-3">
+            {folders.map((folder) => (
+              <div key={folder || 'root'} className="flex flex-col gap-1">
+                {folder && (
+                  <span className="px-2 font-mono text-xs text-fg-3">{folder}/</span>
+                )}
+                {files
+                  .filter((file) => file.folder === folder)
+                  .map((file) => {
+                    const Icon = file.icon;
+                    const isActive = file.id === activeFile.id;
+                    return (
+                      <button
+                        key={file.id}
+                        type="button"
+                        onClick={() => setActiveId(file.id)}
+                        aria-current={isActive ? 'true' : undefined}
+                        className={`flex items-center gap-2 rounded px-2 py-1.5 text-left font-mono text-xs transition-colors ${
+                          folder ? 'ml-3' : ''
+                        } ${isActive ? 'bg-surface-2 text-fg' : 'text-fg-2 hover:bg-surface-1 hover:text-fg'}`}
+                      >
+                        <Icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-accent' : 'text-fg-3'}`} aria-hidden="true" />
+                        <span className="truncate">{file.name}</span>
+                      </button>
+                    );
+                  })}
+              </div>
+            ))}
+          </nav>
 
-        <button
-          type="button"
-          onClick={handleCopyCode}
-          className="self-end sm:self-auto flex items-center gap-1.5 text-xs text-[#94A3B8] hover:text-[#10B981] font-mono px-3 py-1.5 bg-[#0F172A] border border-[#1E293B] hover:border-[#10B981]/40 rounded-md transition-colors"
-        >
-          {copied ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-[#10B981]" aria-hidden="true" />
-              <span className="text-[#10B981] font-semibold">Copied</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Copy file</span>
-            </>
-          )}
-        </button>
-      </div>
+          <section aria-label="Validation" className="flex flex-col gap-3 rounded border border-line bg-surface-1 p-4">
+            <h3 className="font-mono text-xs uppercase tracking-wider text-fg-3">Validation</h3>
+            <ul className="flex flex-col gap-2">
+              {checks.map((check) => (
+                <li key={check.label} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="text-fg-2">{check.label}</span>
+                  <span className={`inline-flex items-center gap-1.5 font-mono ${check.ok ? 'text-success' : 'text-warning'}`}>
+                    {check.ok ? (
+                      <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                    ) : (
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    )}
+                    {check.ok ? check.passText : check.failText}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="inline-flex items-center gap-2 border-t border-line pt-3 font-mono text-xs text-fg-3">
+              <Cpu className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+              {data.validation.modelUsed || 'Golden preset'}
+            </p>
+            {data.validation.usedFallback && (
+              <p className="flex items-start gap-2 text-xs leading-relaxed text-fg-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
+                No model answered this run, so this code was built offline from your brief.
+              </p>
+            )}
+          </section>
+        </aside>
 
-      <div className="bg-[#080C14] border border-[#1E293B] rounded-xl overflow-hidden flex flex-col">
-        <div className="px-4 py-2.5 border-b border-[#1E293B] bg-[#0D1322] flex items-center gap-2 text-xs font-mono text-[#94A3B8] min-w-0">
-          <span className="text-[#CBD5E1] font-medium truncate">{activeFile.filename}</span>
-          <span className="hidden sm:inline text-[#64748B] truncate">- {activeFile.description}</span>
-        </div>
+        <section className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-surface-0">
+          <div className="flex items-center justify-between gap-3 border-b border-line bg-surface-1 px-4 py-2.5">
+            <div className="flex min-w-0 items-center gap-2 font-mono text-xs">
+              <span className="truncate text-fg">{filePath}</span>
+              <span className="hidden truncate text-fg-3 md:inline">{activeFile.description}</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded border border-line px-2.5 py-1 font-mono text-xs text-fg-2 transition-colors hover:border-line-strong hover:text-fg"
+            >
+              {copied ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-success" aria-hidden="true" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                  Copy file
+                </>
+              )}
+            </button>
+          </div>
 
-        <pre className="p-4 text-xs font-mono text-[#F8FAFC] overflow-x-auto leading-relaxed max-h-[600px] selection:bg-[#10B981]/30">
-          <code>{activeFile.code}</code>
-        </pre>
+          <div className="flex max-h-[560px] overflow-auto font-mono text-xs leading-6">
+            <div aria-hidden="true" className="select-none border-r border-line bg-surface-1 px-3 py-4 text-right tabular-nums text-fg-3">
+              {lines.map((_, index) => (
+                <div key={index} className="min-h-6">
+                  {index + 1}
+                </div>
+              ))}
+            </div>
+            <pre className="min-w-0 flex-1 py-4 pl-4 pr-6">
+              <code className="block">
+                {lines.map((line, index) => (
+                  <div key={index} className="min-h-6 whitespace-pre">
+                    {tokenizeLine(line, language).map((token, tokenIndex) => (
+                      <span key={tokenIndex} className={TOKEN_CLASS[token.kind]}>
+                        {token.text}
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </code>
+            </pre>
+          </div>
+        </section>
       </div>
     </div>
   );

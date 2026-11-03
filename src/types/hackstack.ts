@@ -89,7 +89,7 @@ export const FALLBACK_HACKSTACK_RESULT: HackStackOutput = {
     primaryEntityName: 'Active Hostel Order Pools',
     metrics: [
       { label: 'Active Order Pools', value: '14', trend: '+4 tonight' },
-      { label: 'Avg Split Settlement', value: '42 sec', trend: '98% instant UPI' },
+      { label: 'Avg Split Settlement', value: '42 sec', trend: 'Instant UPI settlement' },
       { label: 'Delivery Fees Saved', value: '₹4,850', trend: 'NST Hostel B' }
     ],
     columns: ['poolName', 'hostelWing', 'totalAmount', 'status'],
@@ -197,7 +197,7 @@ Scaffolded with **HackStack** (Team Blue10.1 — NST-ADYPU).
     {
       slideNumber: 2,
       title: 'The Problem',
-      headline: 'Hostel students overpay 35% on solo late-night food orders',
+      headline: 'Hostel students overpay on solo late-night food orders',
       bullets: ['5 students on the same floor order separately from the same restaurant', 'Manual WhatsApp bill splitting leads to unpaid IOUs and awkwardness'],
       speakerNote: 'Highlight that coordination friction—not lack of demand—prevents pooled orders.'
     },
@@ -286,19 +286,19 @@ Scaffolded with **HackStack** (Team Blue10.1 — NST-ADYPU).
         priority: 1,
         task: 'Implement the pending Vitest edge-case test in starter.test.ts for negative/zero split counts',
         judgingCriteria: 'Feasibility',
-        impactScore: 'High (+25% technical proof)'
+        impactScore: 'High (technical proof)'
       },
       {
         priority: 2,
         task: 'Wire Gemini Vision receipt-OCR endpoint to auto-populate item rows from uploaded bill screenshots',
         judgingCriteria: 'Use of AI',
-        impactScore: 'High (+30% AI depth)'
+        impactScore: 'High (AI depth)'
       },
       {
         priority: 3,
         task: 'Add 1-click WhatsApp share deep-link on each active Hostel Order Pool card',
         judgingCriteria: 'Product Thinking',
-        impactScore: 'Medium (+20% campus adoption)'
+        impactScore: 'Medium (campus adoption)'
       },
       {
         priority: 4,
