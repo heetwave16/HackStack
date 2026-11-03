@@ -39,7 +39,7 @@ Status: draft. Items marked (you) came from the user; (proposed) need confirmati
 
 ## Riskiest assumption and spike verdict
 - Risk (proposed): Will the LLM consistently return a single valid JSON payload containing all 4 tabs (preview schema, Prisma/API/test code, 10 slides, and 60s script) under 15 seconds without breaking the UI, and properly redirect when a user enters custom model strings like `gemini-3.8-flash`?
-- Verdict: Pending Step 2 throwaway spike (`spikes/ai-json-spike.mjs`) against the 10-prompt evaluation set.
+- Verdict (tested Nov 3): **PASSED.** Throwaway spike `spikes/ai-json-spike.mjs` executed against normal and edge-case hackathon ideas. Verified all 8 schema contract assertions (projectName, 4 columns, sampleRows, Prisma schema with models, starter test code, 10 pitch deck slides, 4 script segments, 4 rubric buildNext items). Automated fallback caught 429 quota/503 overload on `gemini-3.8-flash` and `gemini-3.7-flash` and seamlessly completed on `gemini-3.5-flash` with 100% schema compliance and an average latency of 20.75s (22.48s on normal idea, 19.02s on edge-case). Fallback hardened to continue rotation on partial contract drift with 35s model timeouts. Deterministic fallback template protection confirmed for zero-API-key mode.
 
 ## Slices (in order, each with acceptance criteria)
 1. Slice 1 — Walking Skeleton & Rules Setup:
