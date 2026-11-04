@@ -15,10 +15,8 @@ const MODEL_TIMEOUT_MS = 35_000;
 const TOTAL_MODEL_BUDGET_MS = 55_000;
 
 const GEMINI_FALLBACK_CHAIN = [
-  'gemini-3.8-flash',
-  'gemini-3.7-flash',
-  'gemini-3.5-flash',
-  'gemini-2.5-flash'
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite'
 ];
 
 const requestSchema = z.object({
@@ -113,7 +111,10 @@ async function callGemini(modelId: string, apiKey: string, prompt: string, timeo
   const json = (await response.json()) as {
     candidates?: { content?: { parts?: { text?: string }[] } }[];
   };
-  const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+  const text = json.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text ?? '')
+    .join('')
+    .trim();
   if (!text) throw new Error(`Gemini ${modelId} returned no candidate text`);
   return text;
 }
@@ -202,7 +203,8 @@ function buildFallbackResponse(reason: string): HackStackOutput {
     validation: {
       ...FALLBACK_HACKSTACK_RESULT.validation,
       usedFallback: true,
-      modelUsed: `offline fallback (${reason})`
+      modelUsed: 'offline',
+      fallbackReason: reason
     }
   };
 }
@@ -242,7 +244,7 @@ export async function POST(request: Request) {
   );
   const config: ModelConfig = input.modelConfig ?? {
     provider: 'gemini',
-    modelId: 'gemini-3.5-flash',
+    modelId: 'gemini-2.5-flash',
     apiKey: ''
   };
 

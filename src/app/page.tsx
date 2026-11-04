@@ -148,7 +148,7 @@ export default function HackStackStudioPage() {
       setNotice({
         tone: usedFallback ? 'warning' : 'info',
         text: usedFallback
-          ? `No model answered this run. Showing the offline fallback in ${formatDuration(requestMs)}.`
+          ? `Model generation failed: ${json.validation.fallbackReason ?? 'provider request failed'}. Showing the offline fallback.`
           : `Generated with ${json.validation.modelUsed ?? selectedModelOption.label} in ${formatDuration(requestMs)}.`
       });
     } catch (err) {

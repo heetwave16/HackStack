@@ -10,7 +10,8 @@ export const hackStackOutputSchema = z.object({
     schemaValid: z.boolean(),
     compileCheckPassed: z.boolean(),
     usedFallback: z.boolean(),
-    modelUsed: z.string().optional()
+    modelUsed: z.string().optional(),
+    fallbackReason: z.string().max(240).optional()
   }),
   previewApp: z.object({
     primaryEntityName: z.string().min(1).max(120),

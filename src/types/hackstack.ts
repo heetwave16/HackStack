@@ -55,6 +55,7 @@ export interface HackStackOutput {
     compileCheckPassed: boolean;
     usedFallback: boolean;
     modelUsed?: string;
+    fallbackReason?: string;
   };
   previewApp: {
     primaryEntityName: string;
