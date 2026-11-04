@@ -78,6 +78,133 @@ export type ValidationResult =
   | { success: true; data: HackStackOutput }
   | { success: false; errors: string[] };
 
+function extractJsonObject(text: string): string {
+  const start = text.indexOf('{');
+  if (start < 0) throw new Error('Model response did not contain a JSON object');
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < text.length; index += 1) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+    } else if (character === '{') {
+      depth += 1;
+    } else if (character === '}' && --depth === 0) {
+      return text.slice(start, index + 1);
+    }
+  }
+  throw new Error('Model response contained an incomplete JSON object');
+}
+
+function parseJsonWithControlCharacterRepair(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    let repaired = '';
+    let inString = false;
+    let escaped = false;
+    for (const character of text) {
+      if (inString && character === '\n') repaired += '\\n';
+      else if (inString && character === '\r') repaired += '\\r';
+      else if (inString && character === '\t') repaired += '\\t';
+      else repaired += character;
+      if (character === '"' && !escaped) inString = !inString;
+      escaped = character === '\\' && !escaped;
+    }
+    return JSON.parse(repaired);
+  }
+}
+
+function toColumnKey(value: unknown, index: number): string {
+  const normalized = String(value ?? '')
+    .replace(/[^a-zA-Z0-9]+(.)?/g, (_, next: string | undefined) => next ? next.toUpperCase() : '')
+    .replace(/^[^a-zA-Z]+/, '')
+    .replace(/^[A-Z]/, (letter) => letter.toLowerCase());
+  return /^[a-z][A-Za-z0-9]*$/.test(normalized) ? normalized : `field${index + 1}`;
+}
+
+function defaultCellValue(key: string, rowIndex: number): string {
+  if (/status|state/i.test(key)) return 'Active';
+  if (/id$/i.test(key)) return `sample-${rowIndex + 1}`;
+  if (/count|number|amount|total|price|score|value/i.test(key)) return '0';
+  if (/date|time|created|updated/i.test(key)) return 'Today';
+  if (/name|title|label/i.test(key)) return `Sample ${rowIndex + 1}`;
+  return 'Sample value';
+}
+
+function normalizeTimeRange(index: number, value: unknown): string {
+  const expected = ['0:00 - 0:15', '0:15 - 0:30', '0:30 - 0:45', '0:45 - 1:00'];
+  if (index < expected.length) return expected[index];
+  const text = String(value ?? '').trim();
+  const match = text.match(/(\d+)\s*[-–]\s*(\d+)\s*s?/i);
+  if (match) {
+    const start = Number(match[1]);
+    const end = Number(match[2]);
+    if (Number.isFinite(start) && Number.isFinite(end)) {
+      const format = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+      return `${format(start)} - ${format(end)}`;
+    }
+  }
+  return expected[expected.length - 1];
+}
+
+export function normalizeAndRepairStudioOutput(text: string): unknown {
+  const withoutThinking = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  const withoutFences = withoutThinking.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+  const parsed = parseJsonWithControlCharacterRepair(extractJsonObject(withoutFences));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Model response did not resolve to a JSON object');
+  }
+
+  const output = { ...(parsed as Record<string, unknown>) };
+  const previewApp = { ...((output.previewApp as Record<string, unknown> | undefined) ?? {}) };
+  const rawColumns = Array.isArray(previewApp.columns) ? previewApp.columns : [];
+  const columns = Array.from({ length: Math.min(Math.max(rawColumns.length, 3), 6) }, (_, index) =>
+    toColumnKey(rawColumns[index] ?? `field${index + 1}`, index)
+  );
+  while (new Set(columns).size !== columns.length) {
+    const duplicateIndex = columns.findIndex((column, index) => columns.indexOf(column) !== index);
+    columns[duplicateIndex] = `field${duplicateIndex + 1}`;
+  }
+  const rawRows = Array.isArray(previewApp.sampleRows) ? previewApp.sampleRows : [{}];
+  const sampleRows = rawRows.slice(0, 10).map((rawRow, rowIndex) => {
+    const row = rawRow && typeof rawRow === 'object' ? rawRow as Record<string, unknown> : {};
+    return Object.fromEntries(columns.map((column) => {
+      const sourceKey = Object.keys(row).find((key) => key === column || toColumnKey(key, 0) === column);
+      const value = sourceKey ? row[sourceKey] : undefined;
+      return [column, typeof value === 'string' && value.trim() ? value : defaultCellValue(column, rowIndex)];
+    }));
+  });
+  output.previewApp = { ...previewApp, columns, sampleRows };
+
+  if (Array.isArray(output.pitchDeck)) {
+    output.pitchDeck = output.pitchDeck.slice(0, 10).map((slide, index) => ({
+      ...((slide && typeof slide === 'object' ? slide : {}) as Record<string, unknown>),
+      slideNumber: index + 1
+    }));
+  }
+  const demoKit = output.demoKit && typeof output.demoKit === 'object'
+    ? { ...(output.demoKit as Record<string, unknown>) }
+    : undefined;
+  if (demoKit && Array.isArray(demoKit.scriptSegments)) {
+    demoKit.scriptSegments = demoKit.scriptSegments.slice(0, 4).map((segment, index) => ({
+      ...((segment && typeof segment === 'object' ? segment : {}) as Record<string, unknown>),
+      timeRange: normalizeTimeRange(index, (segment as Record<string, unknown> | undefined)?.timeRange)
+    }));
+    output.demoKit = demoKit;
+  }
+
+  return output;
+}
+
 export function validateHackStackOutput(data: unknown): ValidationResult {
   const parsed = hackStackOutputSchema.safeParse(data);
   if (parsed.success) return { success: true, data: parsed.data as HackStackOutput };
