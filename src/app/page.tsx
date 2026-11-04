@@ -15,7 +15,6 @@ import RunLog from '@/components/studio/RunLog';
 import PipelineStrip from '@/components/studio/PipelineStrip';
 import WorkspaceTabs, { type WorkspaceTab } from '@/components/studio/WorkspaceTabs';
 import WorkspaceSkeleton from '@/components/studio/WorkspaceSkeleton';
-import NodeGraph from '@/components/NodeGraph';
 import { DEFAULT_MODEL_ID, MODEL_OPTIONS, type ModelId, type ModelOption } from '@/components/studio/models';
 import { GenerationError, describeFailure, readApiError } from '@/components/studio/describe-failure';
 import { formatDuration } from '@/components/studio/format';
@@ -328,19 +327,6 @@ export default function HackStackStudioPage() {
               }}
               onNotice={(text) => setNotice({ tone: 'info', text })}
             />
-          </aside>
-        )}
-
-        <main className="flex min-w-0 flex-1 flex-col">
-          <PipelineStrip stages={stages} activeTab={activeTab} onSelect={setActiveTab} />
-
-          <div className="w-full max-w-[1440px] px-4 py-6 lg:px-10 lg:py-8">
-            <NodeGraph
-              data={data}
-              activeTab={activeTab}
-              modelLabel={resultModelLabel ?? selectedModelOption.label}
-              onSelect={setActiveTab}
-            />
             <AgentWorkbench
               idea={ideaText}
               model={selectedModelOption}
@@ -348,6 +334,13 @@ export default function HackStackStudioPage() {
               baseUrl={selectedModel === 'openai-compatible' && baseUrl.trim() ? baseUrl.trim() : undefined}
               onNotice={(text) => setNotice({ tone: 'info', text })}
             />
+          </aside>
+        )}
+
+        <main className="flex min-w-0 flex-1 flex-col">
+          <PipelineStrip stages={stages} activeTab={activeTab} onSelect={setActiveTab} />
+
+          <div className="w-full max-w-[1440px] px-4 py-6 lg:px-10 lg:py-8">
             <WorkspaceTabs tabs={workspaceTabs} activeTab={activeTab} onChange={setActiveTab} />
 
             <div id={`panel-${activeTab}`} role="tabpanel" aria-labelledby={`tab-${activeTab}`} className="pt-7">
