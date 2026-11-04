@@ -15,11 +15,16 @@ import RunLog from '@/components/studio/RunLog';
 import PipelineStrip from '@/components/studio/PipelineStrip';
 import WorkspaceTabs, { type WorkspaceTab } from '@/components/studio/WorkspaceTabs';
 import WorkspaceSkeleton from '@/components/studio/WorkspaceSkeleton';
+import NodeGraph from '@/components/NodeGraph';
 import { DEFAULT_MODEL_ID, MODEL_OPTIONS, type ModelId } from '@/components/studio/models';
 import { GenerationError, describeFailure, readApiError } from '@/components/studio/describe-failure';
 import { formatDuration } from '@/components/studio/format';
 import type { Notice, PipelineStage, ResultSource, RunStep, StageStatus, StudioTab } from '@/components/studio/types';
 import { toStudioResult } from '@/lib/studio-result';
+import { validateHackStackOutput } from '@/lib/validator';
+import type { User } from '@supabase/supabase-js';
+import ProjectPanel from '@/components/studio/ProjectPanel';
+import { supabaseBrowser } from '@/lib/supabase-browser';
 
 const CODE_FILE_COUNT = 5;
 const INITIAL_PRESET = BUILT_IN_PRESETS[0];
@@ -32,15 +37,7 @@ function splitFeatures(value: string): string[] {
 }
 
 function isHackStackOutput(value: unknown): value is HackStackOutput {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as Partial<HackStackOutput>;
-  return (
-    typeof candidate.projectName === 'string' &&
-    candidate.previewApp !== undefined &&
-    candidate.codebase !== undefined &&
-    Array.isArray(candidate.pitchDeck) &&
-    candidate.demoKit !== undefined
-  );
+  return validateHackStackOutput(value).success;
 }
 
 export default function HackStackStudioPage() {
@@ -64,6 +61,8 @@ export default function HackStackStudioPage() {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
 
   const activePreset = BUILT_IN_PRESETS.find((preset) => preset.ideaText === ideaText.trim()) ?? null;
   const selectedModelOption = MODEL_OPTIONS.find((option) => option.id === selectedModel) ?? MODEL_OPTIONS[1];
@@ -121,9 +120,15 @@ export default function HackStackStudioPage() {
 
     try {
       const requestStartedAt = performance.now();
+      const { data: sessionData } = supabaseBrowser ? await supabaseBrowser.auth.getSession() : { data: { session: null } };
       const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sessionData.session?.access_token
+            ? { Authorization: `Bearer ${sessionData.session.access_token}` }
+            : {})
+        },
         body: JSON.stringify({ idea, stack: stackSelection, features, modelConfig }),
       });
       if (!response.ok) {
@@ -137,9 +142,15 @@ export default function HackStackStudioPage() {
       }
       setRunLog((previous) => [...previous, { id: 'check', label: 'Result shape checked', status: 'done' }]);
       setData(json);
-      setResultSource('live');
-      setResultModelLabel(selectedModelOption.label);
-      setNotice({ tone: 'info', text: `Generated with ${selectedModelOption.label} in ${formatDuration(requestMs)}.` });
+      const usedFallback = json.validation.usedFallback;
+      setResultSource(usedFallback ? 'offline' : 'live');
+      setResultModelLabel(usedFallback ? null : json.validation.modelUsed ?? selectedModelOption.label);
+      setNotice({
+        tone: usedFallback ? 'warning' : 'info',
+        text: usedFallback
+          ? `No model answered this run. Showing the offline fallback in ${formatDuration(requestMs)}.`
+          : `Generated with ${json.validation.modelUsed ?? selectedModelOption.label} in ${formatDuration(requestMs)}.`
+      });
     } catch (err) {
       const reason = describeFailure(err);
       patchStep('model', { label: `Live call failed: ${reason}`, status: 'failed', ms: performance.now() - startedAt });
@@ -253,13 +264,14 @@ export default function HackStackStudioPage() {
         status={statusChip}
         linkCopied={linkCopied}
         onCopyLink={handleCopyLink}
+        onUserChange={setUser}
       />
 
       <div className="flex flex-1 flex-col lg:flex-row">
         {railOpen && (
           <aside
             id="studio-brief"
-            className="flex w-full shrink-0 flex-col gap-8 border-b border-line bg-surface-1 p-4 lg:sticky lg:top-14 lg:h-[calc(100vh-3.5rem)] lg:w-[340px] lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-5"
+            className="flex w-full shrink-0 flex-col gap-8 border-b border-line bg-surface-1/55 p-4 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:w-[320px] lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-5"
           >
             <BriefRail
               presets={BUILT_IN_PRESETS}
@@ -276,16 +288,38 @@ export default function HackStackStudioPage() {
               notice={notice}
             />
             <RunLog steps={runLog} />
+            <ProjectPanel
+              user={user}
+              input={{ idea: ideaText, stack: stackSelection, features }}
+              output={data}
+              projectId={projectId}
+              onProjectSaved={setProjectId}
+              onProjectLoaded={({ id, input: loadedInput, output }) => {
+                setProjectId(id);
+                setIdeaText(loadedInput.idea);
+                setStackSelection(loadedInput.stack);
+                setFeatures(loadedInput.features);
+                setData(output);
+                setResultSource('live');
+              }}
+              onNotice={(text) => setNotice({ tone: 'info', text })}
+            />
           </aside>
         )}
 
         <main className="flex min-w-0 flex-1 flex-col">
           <PipelineStrip stages={stages} activeTab={activeTab} onSelect={setActiveTab} />
 
-          <div className="w-full max-w-6xl px-4 py-6 lg:px-8">
+          <div className="w-full max-w-[1440px] px-4 py-6 lg:px-10 lg:py-8">
+            <NodeGraph
+              data={data}
+              activeTab={activeTab}
+              modelLabel={resultModelLabel ?? selectedModelOption.label}
+              onSelect={setActiveTab}
+            />
             <WorkspaceTabs tabs={workspaceTabs} activeTab={activeTab} onChange={setActiveTab} />
 
-            <div id={`panel-${activeTab}`} role="tabpanel" aria-labelledby={`tab-${activeTab}`} className="pt-6">
+            <div id={`panel-${activeTab}`} role="tabpanel" aria-labelledby={`tab-${activeTab}`} className="pt-7">
               {isGenerating ? (
                 <WorkspaceSkeleton />
               ) : (

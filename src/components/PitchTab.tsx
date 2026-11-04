@@ -37,6 +37,20 @@ export default function PitchTab({ data }: PitchTabProps) {
   const slides = data.pitchDeck;
   const lastIndex = Math.max(0, slides.length - 1);
 
+  async function toggleFullscreen() {
+    const canvas = canvasRef.current;
+    if (!canvas || typeof document.fullscreenEnabled === 'undefined' || !document.fullscreenEnabled) return;
+    try {
+      if (document.fullscreenElement === canvas) {
+        await document.exitFullscreen();
+      } else {
+        await canvas.requestFullscreen();
+      }
+    } catch {
+      setIsFullscreen(false);
+    }
+  }
+
   useEffect(() => {
     setCurrentIndex(0);
   }, [data.projectName]);
@@ -56,23 +70,7 @@ export default function PitchTab({ data }: PitchTabProps) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-    // toggleFullscreen only reads the canvas ref, so it is stable for this listener
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastIndex]);
-
-  const toggleFullscreen = async () => {
-    const canvas = canvasRef.current;
-    if (!canvas || typeof document.fullscreenEnabled === 'undefined' || !document.fullscreenEnabled) return;
-    try {
-      if (document.fullscreenElement === canvas) {
-        await document.exitFullscreen();
-      } else {
-        await canvas.requestFullscreen();
-      }
-    } catch {
-      setIsFullscreen(false);
-    }
-  };
 
   const handleExport = () => {
     const blob = new Blob([buildDeckMarkdown(data)], { type: 'text/markdown;charset=utf-8' });

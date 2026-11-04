@@ -71,8 +71,8 @@ export default function BriefRail({
   return (
     <section aria-label="Brief" className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <label htmlFor="idea" className={SECTION_LABEL}>
-          Idea
+        <label htmlFor="idea" className="eyebrow">
+          01 / The brief
         </label>
         <textarea
           id="idea"
@@ -80,13 +80,13 @@ export default function BriefRail({
           value={ideaText}
           onChange={(event) => onIdeaChange(event.target.value)}
           placeholder="Two sentences: who has the problem, and what the app does about it."
-          className={`${CONTROL} h-auto resize-y py-2 leading-relaxed`}
+          className={`${CONTROL} h-auto resize-y rounded-lg py-3 leading-relaxed shadow-inner shadow-black/10`}
         />
       </div>
 
       <div className="flex flex-col gap-2">
-        <label htmlFor="stack" className={SECTION_LABEL}>
-          Stack
+        <label htmlFor="stack" className="eyebrow">
+          02 / The stack
         </label>
         <select id="stack" value={stack} onChange={(event) => onStackChange(event.target.value)} className={CONTROL}>
           {STACK_OPTIONS.map((option) => (
@@ -98,8 +98,8 @@ export default function BriefRail({
       </div>
 
       <div className="flex flex-col gap-2">
-        <label htmlFor="feature-draft" className={SECTION_LABEL}>
-          Must-have features
+        <label htmlFor="feature-draft" className="eyebrow">
+          03 / Must-have features
         </label>
         {features.length > 0 && (
           <ul className="flex flex-wrap gap-1.5" aria-label="Must-have features">
@@ -140,7 +140,7 @@ export default function BriefRail({
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className={SECTION_LABEL}>Presets</span>
+        <span className="eyebrow">Start from a real shape</span>
         <ul className="flex flex-col gap-1">
           {presets.map((preset) => {
             const isActive = preset.name === activePresetName;
@@ -171,7 +171,7 @@ export default function BriefRail({
           type="button"
           onClick={onGenerate}
           disabled={isGenerating}
-          className="flex h-10 items-center justify-between gap-2 rounded bg-accent px-4 text-sm font-semibold text-surface-0 transition-colors hover:bg-accent-hover disabled:opacity-60"
+          className="flex h-11 items-center justify-between gap-2 rounded-lg bg-accent px-4 text-sm font-semibold text-surface-0 shadow-[0_8px_24px_rgb(45_212_191_/_0.16)] transition-all hover:-translate-y-0.5 hover:bg-accent-hover hover:shadow-[0_10px_28px_rgb(45_212_191_/_0.24)] disabled:translate-y-0 disabled:opacity-60"
         >
           <span className="inline-flex items-center gap-2">
             {isGenerating ? (

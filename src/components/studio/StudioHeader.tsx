@@ -1,6 +1,8 @@
-import { Copy, Eye, EyeOff, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Copy, Eye, EyeOff, PanelLeftClose, PanelLeftOpen, Sparkles } from 'lucide-react';
 import { MODEL_OPTIONS, type ModelId } from './models';
 import { CONTROL } from './ui';
+import AuthPanel from './AuthPanel';
+import type { User } from '@supabase/supabase-js';
 
 export type StatusTone = 'running' | 'live' | 'offline' | 'preset';
 export interface StatusChip {
@@ -30,6 +32,7 @@ interface StudioHeaderProps {
   status: StatusChip;
   linkCopied: boolean;
   onCopyLink: () => void;
+  onUserChange: (user: User | null) => void;
 }
 
 export default function StudioHeader({
@@ -47,9 +50,10 @@ export default function StudioHeader({
   status,
   linkCopied,
   onCopyLink,
+  onUserChange,
 }: StudioHeaderProps) {
   return (
-    <header className="sticky top-0 z-40 flex min-h-14 flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-line bg-surface-0 px-4 py-2 lg:h-14 lg:flex-nowrap lg:py-0">
+    <header className="sticky top-0 z-40 flex min-h-16 flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-line bg-surface-0/90 px-4 py-3 backdrop-blur-xl lg:h-16 lg:flex-nowrap lg:py-0">
       <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
@@ -61,9 +65,14 @@ export default function StudioHeader({
         >
           {railOpen ? <PanelLeftClose className="h-4 w-4" aria-hidden="true" /> : <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />}
         </button>
-        <div className="min-w-0 leading-tight">
-          <div className="truncate text-sm font-semibold text-fg">HackStack Studio</div>
-          <div className="truncate font-mono text-xs text-fg-3">Team Blue10.1 · NST-ADYPU</div>
+        <div className="flex min-w-0 items-center gap-3 leading-tight">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-accent/30 bg-accent/10 text-accent">
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold tracking-tight text-fg">HackStack <span className="font-normal text-fg-3">/ Studio</span></div>
+            <div className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-fg-3">Build a sharp first version</div>
+          </div>
         </div>
       </div>
 
@@ -72,7 +81,7 @@ export default function StudioHeader({
           aria-label="Model"
           value={modelId}
           onChange={(event) => onModelChange(event.target.value as ModelId)}
-          className={CONTROL}
+          className={`${CONTROL} max-w-[190px]`}
         >
           {MODEL_OPTIONS.map((option) => (
             <option key={option.id} value={option.id}>
@@ -110,6 +119,7 @@ export default function StudioHeader({
           >
             {showKey ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
           </button>
+          <AuthPanel onUserChange={onUserChange} />
         </div>
 
         <span
@@ -123,7 +133,7 @@ export default function StudioHeader({
         <button
           type="button"
           onClick={onCopyLink}
-          className="inline-flex h-8 items-center gap-2 rounded border border-line px-3 text-sm text-fg-2 transition-colors hover:border-line-strong hover:text-fg"
+          className="inline-flex h-8 items-center gap-2 rounded-md border border-line px-3 text-xs font-medium text-fg-2 transition-colors hover:border-line-strong hover:bg-surface-1 hover:text-fg"
         >
           <Copy className="h-4 w-4" aria-hidden="true" />
           {linkCopied ? 'Link copied' : 'Share link'}

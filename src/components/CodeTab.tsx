@@ -95,7 +95,7 @@ export default function CodeTab({ data }: CodeTabProps) {
 
   const checks = [
     { label: 'Schema valid', ok: data.validation.schemaValid, passText: 'Passed', failText: 'Failed' },
-    { label: 'Compile check', ok: data.validation.compileCheckPassed, passText: 'Passed', failText: 'Failed' },
+    { label: 'Static code check', ok: data.validation.compileCheckPassed, passText: 'Passed', failText: 'Needs review' },
     { label: 'Source', ok: !data.validation.usedFallback, passText: 'Model output', failText: 'Offline fallback' },
   ];
 

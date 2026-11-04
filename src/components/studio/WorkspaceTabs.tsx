@@ -35,7 +35,7 @@ export default function WorkspaceTabs({ tabs, activeTab, onChange }: WorkspaceTa
   };
 
   return (
-    <div role="tablist" aria-label="Studio outputs" className="flex gap-1 overflow-x-auto border-b border-line">
+    <div role="tablist" aria-label="Studio outputs" className="flex gap-1 overflow-x-auto rounded-lg border border-line bg-surface-1/60 p-1">
       {tabs.map((tab, index) => {
         const isActive = tab.id === activeTab;
         const Icon = tab.icon;
@@ -53,8 +53,8 @@ export default function WorkspaceTabs({ tabs, activeTab, onChange }: WorkspaceTa
             tabIndex={isActive ? 0 : -1}
             onClick={() => onChange(tab.id)}
             onKeyDown={(event) => handleKeyDown(event, index)}
-            className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm transition-colors ${
-              isActive ? 'border-fg text-fg' : 'border-transparent text-fg-3 hover:text-fg-2'
+            className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm transition-all ${
+              isActive ? 'bg-surface-2 text-fg shadow-sm' : 'text-fg-3 hover:bg-surface-2/50 hover:text-fg-2'
             }`}
           >
             <Icon className="h-4 w-4" aria-hidden="true" />

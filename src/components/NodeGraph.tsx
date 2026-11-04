@@ -65,10 +65,17 @@ export default function NodeGraph({ data, activeTab, modelLabel, onSelect }: Nod
   return (
     <section
       aria-label="Architecture graph"
-      className="rounded-xl border border-[#1E293B] bg-[#090D16] p-4 sm:p-5"
-      style={{ backgroundImage: 'radial-gradient(#1E293B 1px, transparent 1px)', backgroundSize: '16px 16px' }}
+      className="workbench-panel overflow-hidden p-4 sm:p-5"
+      style={{ backgroundImage: 'radial-gradient(rgb(67 79 96 / 0.32) 1px, transparent 1px)', backgroundSize: '18px 18px' }}
     >
       <div className="flex flex-col gap-3">
+        <div className="mb-1 flex items-center justify-between">
+          <div>
+            <p className="eyebrow text-accent">Your build map</p>
+            <p className="mt-1 text-xs text-[#94A3B8]">A single brief, four useful outputs.</p>
+          </div>
+          <span className="hidden rounded-full border border-line bg-surface-0/60 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-fg-3 sm:inline-flex">Draft workspace</span>
+        </div>
         <div className="flex flex-col gap-3 md:flex-row md:items-stretch">
           <GraphNode icon={FileText} kicker="Brief" title="Idea" detail={data.projectName} activeTab={activeTab} onSelect={onSelect} />
           <FlowArrow />
