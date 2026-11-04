@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { agentRunRequestSchema, buildAgentPrompt } from '@/lib/agents';
+import { agentRunRequestSchema, buildAgentPrompt, parseAgentPatch } from '@/lib/agents';
 import { generateWithGateway, GatewayError } from '@/lib/ai-gateway';
 
 export const runtime = 'nodejs';
@@ -27,7 +27,13 @@ export async function POST(request: Request) {
       user: buildAgentPrompt(input.agent, input.idea, input.context),
       timeoutMs: 45_000
     });
-    return NextResponse.json({ agent: input.agent, output });
+    let patch;
+    try {
+      patch = parseAgentPatch(output);
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? `Agent returned an invalid patch: ${error.message}` : 'Agent returned an invalid patch' }, { status: 502 });
+    }
+    return NextResponse.json({ agent: input.agent, output, patch });
   } catch (error) {
     const message = error instanceof GatewayError || error instanceof Error ? error.message : 'Agent failed';
     return NextResponse.json({ error: message }, { status: 502 });

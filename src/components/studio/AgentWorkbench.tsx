@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Check, CircleAlert, LoaderCircle, Play, RotateCcw } from 'lucide-react';
-import { AGENTS, type AgentId } from '@/lib/agents';
+import { AGENTS, type AgentId, type AgentPatch } from '@/lib/agents';
 import type { ModelOption } from './models';
 
 type AgentStatus = 'idle' | 'running' | 'done' | 'failed';
@@ -14,11 +14,12 @@ interface AgentWorkbenchProps {
   apiKey: string;
   baseUrl?: string;
   onNotice: (text: string) => void;
+  onPatch: (agent: AgentId, patch: AgentPatch) => void;
 }
 
 const ORDER: AgentId[] = ['product', 'architecture', 'ui', 'code', 'pitch', 'qa'];
 
-export default function AgentWorkbench({ idea, model, apiKey, baseUrl, onNotice }: AgentWorkbenchProps) {
+export default function AgentWorkbench({ idea, model, apiKey, baseUrl, onNotice, onPatch }: AgentWorkbenchProps) {
   const [states, setStates] = useState<Record<AgentId, AgentState>>(
     () => Object.fromEntries(ORDER.map((id) => [id, { status: 'idle' }])) as Record<AgentId, AgentState>
   );
@@ -45,9 +46,11 @@ export default function AgentWorkbench({ idea, model, apiKey, baseUrl, onNotice 
           baseUrl
         })
       });
-      const body = await response.json() as { output?: string; error?: string };
+      const body = await response.json() as { output?: string; patch?: AgentPatch; error?: string };
       if (!response.ok || !body.output) throw new Error(body.error ?? 'Agent returned no output');
+      if (!body.patch) throw new Error('Agent returned no workspace patch');
       setStates((previous) => ({ ...previous, [agent]: { status: 'done', output: body.output } }));
+      onPatch(agent, body.patch);
       return body.output;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Agent failed';

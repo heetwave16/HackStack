@@ -24,7 +24,8 @@ export const hackStackOutputSchema = z.object({
     prismaSchema: z.string().min(20),
     apiRouteCode: z.string().min(20),
     starterTestCode: z.string().min(20),
-    readmeMarkdown: z.string().min(20)
+    readmeMarkdown: z.string().min(20),
+    additionalFiles: z.array(z.object({ path: z.string().min(1), content: z.string(), language: z.string().optional() })).optional()
   }),
   pitchDeck: z
     .array(

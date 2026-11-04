@@ -114,7 +114,7 @@ export function numericValue(value: string): number {
   return match ? Number(match[0]) : Number.NaN;
 }
 
-const CODE_FILES: Array<[keyof HackStackOutput['codebase'], string, string]> = [
+const CODE_FILES: Array<['prismaSchema' | 'apiRouteCode' | 'starterTestCode' | 'readmeMarkdown', string, string]> = [
   ['prismaSchema', 'prisma/schema.prisma', 'prisma'],
   ['apiRouteCode', 'src/app/api/main/route.ts', 'typescript'],
   ['starterTestCode', 'tests/starter.test.ts', 'typescript'],
@@ -152,7 +152,14 @@ export function toStudioResult(output: HackStackOutput, opts: ToStudioOptions): 
       label: (previewApp.quickActionLabel || `Add ${humanizeKey(previewApp.primaryEntityName)}`).replace(/^\+\s*/, ''),
       fields
     },
-    files: CODE_FILES.map(([k, path, language]) => ({ path, language, content: output.codebase[k] })),
+    files: [
+      ...CODE_FILES.map(([k, path, language]) => ({ path, language, content: output.codebase[k] })),
+      ...(output.codebase.additionalFiles ?? []).map((file) => ({
+        path: file.path,
+        language: file.language ?? file.path.split('.').pop() ?? 'text',
+        content: file.content
+      }))
+    ],
     slides: output.pitchDeck.map((s) => ({
       number: s.slideNumber, title: s.title, headline: s.headline, bullets: s.bullets, notes: s.speakerNote
     })),

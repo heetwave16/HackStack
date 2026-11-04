@@ -25,6 +25,7 @@ import type { User } from '@supabase/supabase-js';
 import ProjectPanel from '@/components/studio/ProjectPanel';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import AgentWorkbench from '@/components/studio/AgentWorkbench';
+import { AGENTS, mergeAgentPatch, type AgentId, type AgentPatch } from '@/lib/agents';
 
 const CODE_FILE_COUNT = 5;
 const INITIAL_PRESET = BUILT_IN_PRESETS[0];
@@ -244,6 +245,13 @@ export default function HackStackStudioPage() {
     [data, activePreset, resultSource, latencyMs]
   );
 
+  const handleAgentPatch = useCallback((agent: AgentId, patch: AgentPatch) => {
+    setData((previous) => mergeAgentPatch(previous, patch));
+    setResultSource('live');
+    setResultModelLabel(selectedModelOption.label);
+    setNotice({ tone: 'info', text: `${AGENTS[agent].label} updated the live workspace.` });
+  }, [selectedModelOption.label]);
+
   const hasRun = runLog.length > 0;
   const downstreamStatus: StageStatus = isGenerating ? 'running' : 'done';
   const modelStatus: StageStatus = isGenerating
@@ -333,6 +341,7 @@ export default function HackStackStudioPage() {
               apiKey={apiKey}
               baseUrl={selectedModel === 'openai-compatible' && baseUrl.trim() ? baseUrl.trim() : undefined}
               onNotice={(text) => setNotice({ tone: 'info', text })}
+              onPatch={handleAgentPatch}
             />
           </aside>
         )}

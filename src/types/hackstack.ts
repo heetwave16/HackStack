@@ -69,6 +69,7 @@ export interface HackStackOutput {
     apiRouteCode: string;
     starterTestCode: string;
     readmeMarkdown: string;
+    additionalFiles?: Array<{ path: string; content: string; language?: string }>;
   };
   pitchDeck: PitchSlide[];
   demoKit: {

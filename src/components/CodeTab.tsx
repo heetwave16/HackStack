@@ -61,6 +61,14 @@ export default function CodeTab({ data }: CodeTabProps) {
       description: 'Environment variables template',
       code: buildEnvExample(data.projectName),
     },
+    ...(data.codebase.additionalFiles ?? []).map((file) => ({
+      id: `additional-${file.path}`,
+      folder: file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : '',
+      name: file.path.split('/').pop() ?? file.path,
+      icon: FileCode,
+      description: 'Generated workspace file',
+      code: file.content
+    })),
   ];
 
   const [activeId, setActiveId] = useState<string>('prisma');

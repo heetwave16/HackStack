@@ -44,6 +44,7 @@ export async function buildHackStackZip(data: HackStackOutput): Promise<Blob> {
     '.env.example': buildEnvExample(data.projectName),
     'PITCH_DECK.md': buildPitchDeckMarkdown(data)
   };
+  for (const file of data.codebase.additionalFiles ?? []) files[file.path] = file.content;
   for (const [path, content] of Object.entries(files)) {
     zip.file(path, content);
   }
