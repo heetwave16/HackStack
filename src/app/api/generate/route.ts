@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildHackStackUserPrompt } from '@/lib/prompts';
 import { normalizeAndRepairStudioOutput, passesGeneratedCodeChecks, validateHackStackOutput } from '@/lib/validator';
-import { FALLBACK_HACKSTACK_RESULT, type HackStackInput, type HackStackOutput } from '@/types/hackstack';
+import { type HackStackInput, type HackStackOutput } from '@/types/hackstack';
 import { getUserIdFromAccessToken, persistGenerationRun } from '@/lib/supabase';
 import { GatewayError, generateWithGateway } from '@/lib/ai-gateway';
 
@@ -54,18 +54,6 @@ function shouldRetryWithFreeModel(error: unknown, config: ModelConfig): boolean 
   return error instanceof Error;
 }
 
-function buildFallbackResponse(reason: string): HackStackOutput {
-  return {
-    ...FALLBACK_HACKSTACK_RESULT,
-    validation: {
-      ...FALLBACK_HACKSTACK_RESULT.validation,
-      usedFallback: true,
-      modelUsed: 'offline',
-      fallbackReason: reason.slice(0, 240)
-    }
-  };
-}
-
 async function respondWithRun(output: HackStackOutput, input: HackStackInput, startedAt: number, userId: string | null) {
   await persistGenerationRun({
     input,
@@ -93,7 +81,12 @@ export async function POST(request: Request) {
     apiKey: ''
   };
   const apiKey = resolveApiKey(config);
-  if (!apiKey) return respondWithRun(buildFallbackResponse('No API key configured. Add an OpenRouter key or set OPENROUTER_API_KEY.'), input, startedAt, userId);
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: `No API key configured for ${config.provider}. Add a key in the model bar or configure the server environment.` },
+      { status: 401 }
+    );
+  }
 
   try {
     if (config.provider === 'openai-compatible') assertSafeEndpoint(config.baseUrl);
@@ -130,10 +123,16 @@ export async function POST(request: Request) {
         if (model === models[models.length - 1] || !shouldRetryWithFreeModel(error, config)) break;
       }
     }
-    return respondWithRun(buildFallbackResponse(`Model output failed validation: ${lastFailure}`), input, startedAt, userId);
+    return NextResponse.json(
+      { error: `AI generation failed for ${config.modelId}: ${lastFailure}` },
+      { status: 502 }
+    );
   } catch (error) {
     const reason = error instanceof GatewayError || error instanceof Error ? error.message : 'AI gateway request failed';
     console.warn('AI gateway failed:', reason);
-    return respondWithRun(buildFallbackResponse(reason), input, startedAt, userId);
+    return NextResponse.json(
+      { error: `AI generation failed for ${config.modelId}: ${reason}` },
+      { status: 502 }
+    );
   }
 }

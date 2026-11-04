@@ -22,8 +22,13 @@ create table if not exists public.projects (
   idea text not null,
   stack text not null,
   features jsonb not null default '[]'::jsonb,
-  result jsonb not null
+  result jsonb not null,
+  workspace_state jsonb not null default '{}'::jsonb
 );
+
+alter table public.projects add column if not exists workspace_state jsonb not null default '{}'::jsonb;
+create index if not exists projects_owner_updated_at_idx
+  on public.projects (owner_id, updated_at desc);
 
 create table if not exists public.project_members (
   project_id uuid not null references public.projects(id) on delete cascade,

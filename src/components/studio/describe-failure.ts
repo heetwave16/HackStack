@@ -23,15 +23,13 @@ export function describeFailure(error: unknown): string {
         return `the request was rejected (${error.message})`;
       case 401:
       case 403:
-        return 'the API key was rejected by the provider';
+        return error.message;
       case 429:
         return 'the provider quota or rate limit is used up';
       case 502:
-        return error.message === 'model output failed validation'
-          ? 'the model answered, but its output failed validation'
-          : 'the provider call failed or timed out';
+        return error.message;
       case 503:
-        return 'no API key is set on the server and none was entered';
+        return error.message;
       default:
         return `the generation service returned status ${error.status}`;
     }

@@ -10,9 +10,10 @@ interface ProjectPanelProps {
   user: User | null;
   input: HackStackInput;
   output: HackStackOutput;
+  workspaceState: Record<string, unknown>;
   projectId: string | null;
   onProjectSaved: (id: string) => void;
-  onProjectLoaded: (project: { id: string; input: HackStackInput; output: HackStackOutput }) => void;
+  onProjectLoaded: (project: { id: string; input: HackStackInput; output: HackStackOutput; workspaceState?: Record<string, unknown> }) => void;
   onNotice: (text: string) => void;
 }
 
@@ -24,9 +25,10 @@ type SavedProject = {
   stack: string;
   features: string[];
   result: HackStackOutput;
+  workspace_state?: Record<string, unknown>;
 };
 
-export default function ProjectPanel({ user, input, output, projectId, onProjectSaved, onProjectLoaded, onNotice }: ProjectPanelProps) {
+export default function ProjectPanel({ user, input, output, workspaceState, projectId, onProjectSaved, onProjectLoaded, onNotice }: ProjectPanelProps) {
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [busy, setBusy] = useState(false);
@@ -40,7 +42,7 @@ export default function ProjectPanel({ user, input, output, projectId, onProject
     void supabase.rpc('accept_my_project_invites');
     void supabase
       .from('projects')
-      .select('id, project_name, idea, stack, features, result, created_at')
+      .select('id, project_name, idea, stack, features, result, workspace_state, created_at')
       .order('updated_at', { ascending: false })
       .limit(5)
       .then(({ data }) => {
@@ -62,7 +64,8 @@ export default function ProjectPanel({ user, input, output, projectId, onProject
       idea: input.idea,
       stack: input.stack,
       features: input.features,
-      result: output
+      result: output,
+      workspace_state: workspaceState,
     };
     const query = projectId
       ? supabase.from('projects').update(payload).eq('id', projectId).select('id').single()
@@ -136,7 +139,7 @@ export default function ProjectPanel({ user, input, output, projectId, onProject
             <button
               key={project.id}
               type="button"
-              onClick={() => onProjectLoaded({ id: project.id, input: { idea: project.idea, stack: project.stack, features: project.features }, output: project.result })}
+              onClick={() => onProjectLoaded({ id: project.id, input: { idea: project.idea, stack: project.stack, features: project.features }, output: project.result, workspaceState: project.workspace_state })}
               className="truncate text-left text-xs text-fg-2 hover:text-accent"
             >
               {project.project_name}

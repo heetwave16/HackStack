@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Code2, Monitor, Presentation, Video } from 'lucide-react';
 import { FALLBACK_HACKSTACK_RESULT, HackStackOutput, ModelConfig } from '@/types/hackstack';
 import { BUILT_IN_PRESETS, HackStackPreset } from '@/components/presets';
@@ -25,10 +25,26 @@ import { validateHackStackOutput } from '@/lib/validator';
 import type { User } from '@supabase/supabase-js';
 import ProjectPanel from '@/components/studio/ProjectPanel';
 import { supabaseBrowser } from '@/lib/supabase-browser';
-import AgentWorkbench from '@/components/studio/AgentWorkbench';
+import AgentWorkbench, { type AgentWorkbenchState } from '@/components/studio/AgentWorkbench';
 
 const CODE_FILE_COUNT = 5;
 const INITIAL_PRESET = BUILT_IN_PRESETS[0];
+const WORKSPACE_STORAGE_KEY = 'hackstack:active-workspace:v1';
+
+type WorkspaceSnapshot = {
+  ideaText: string;
+  stackSelection: string;
+  features: string[];
+  selectedModel: string;
+  baseUrl: string;
+  activeTab: StudioTab;
+  data: HackStackOutput;
+  resultSource: ResultSource;
+  resultModelLabel: string | null;
+  latencyMs: number | null;
+  runLog: RunStep[];
+  agentStates: Record<string, AgentWorkbenchState>;
+};
 
 function splitFeatures(value: string): string[] {
   return value
@@ -65,9 +81,106 @@ export default function HackStackStudioPage() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [agentStates, setAgentStates] = useState<Record<string, AgentWorkbenchState>>({});
+  const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
+  const [supabaseHydrated, setSupabaseHydrated] = useState(false);
+  const autosaveInFlight = useRef(false);
 
   const activePreset = BUILT_IN_PRESETS.find((preset) => preset.ideaText === ideaText.trim()) ?? null;
   const selectedModelOption = availableModels.find((option) => option.id === selectedModel) ?? availableModels[0];
+
+  const workspaceSnapshot = useMemo<WorkspaceSnapshot>(
+    () => ({
+      ideaText,
+      stackSelection,
+      features,
+      selectedModel,
+      baseUrl,
+      activeTab,
+      data,
+      resultSource,
+      resultModelLabel,
+      latencyMs,
+      runLog,
+      agentStates,
+    }),
+    [activeTab, agentStates, baseUrl, data, features, ideaText, latencyMs, resultModelLabel, resultSource, runLog, selectedModel, stackSelection]
+  );
+
+  const applyWorkspaceSnapshot = useCallback((snapshot: Partial<WorkspaceSnapshot>) => {
+    if (typeof snapshot.ideaText === 'string') setIdeaText(snapshot.ideaText);
+    if (typeof snapshot.stackSelection === 'string') setStackSelection(snapshot.stackSelection);
+    if (Array.isArray(snapshot.features)) setFeatures(snapshot.features.filter((feature): feature is string => typeof feature === 'string'));
+    if (typeof snapshot.selectedModel === 'string') setSelectedModel(snapshot.selectedModel);
+    if (typeof snapshot.baseUrl === 'string') setBaseUrl(snapshot.baseUrl);
+    if (snapshot.activeTab) setActiveTab(snapshot.activeTab);
+    if (snapshot.data && isHackStackOutput(snapshot.data)) setData(snapshot.data);
+    if (snapshot.resultSource) setResultSource(snapshot.resultSource);
+    if (snapshot.resultModelLabel !== undefined) setResultModelLabel(snapshot.resultModelLabel);
+    if (snapshot.latencyMs !== undefined) setLatencyMs(snapshot.latencyMs);
+    if (Array.isArray(snapshot.runLog)) setRunLog(snapshot.runLog);
+    if (snapshot.agentStates) setAgentStates(snapshot.agentStates);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(WORKSPACE_STORAGE_KEY);
+      if (raw) applyWorkspaceSnapshot(JSON.parse(raw) as Partial<WorkspaceSnapshot>);
+    } catch {
+      window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+    } finally {
+      setWorkspaceHydrated(true);
+    }
+  }, [applyWorkspaceSnapshot]);
+
+  useEffect(() => {
+    if (!workspaceHydrated) return;
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(workspaceSnapshot));
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [workspaceHydrated, workspaceSnapshot]);
+
+  useEffect(() => {
+    if (!user || !supabaseBrowser) {
+      setSupabaseHydrated(false);
+      return;
+    }
+    let active = true;
+    const supabase = supabaseBrowser;
+    void Promise.resolve(
+      supabase
+        .from('projects')
+        .select('id, project_name, idea, stack, features, result, workspace_state, created_at')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    )
+      .then(({ data: project }) => {
+        if (!active) return;
+        if (project?.workspace_state && typeof project.workspace_state === 'object' && Object.keys(project.workspace_state).length > 0) {
+          setProjectId(project.id);
+          applyWorkspaceSnapshot(project.workspace_state as Partial<WorkspaceSnapshot>);
+        } else if (project && isHackStackOutput(project.result)) {
+          setProjectId(project.id);
+          applyWorkspaceSnapshot({
+            ideaText: project.idea,
+            stackSelection: project.stack,
+            features: project.features,
+            data: project.result,
+            resultSource: 'live',
+            runLog: [{ id: 'restored', label: 'Restored latest Supabase project', status: 'done' }],
+          });
+        }
+        setSupabaseHydrated(true);
+      })
+      .catch(() => {
+        if (active) setSupabaseHydrated(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [applyWorkspaceSnapshot, user]);
 
   useEffect(() => {
     if (!apiKey.trim() || selectedModelOption?.provider !== 'openrouter') return;
@@ -117,6 +230,11 @@ export default function HackStackStudioPage() {
 
   const handleGenerate = useCallback(async () => {
     if (isGenerating) return;
+
+    if (!user) {
+      setNotice({ tone: 'error', text: 'Sign in with the Save your work button before generating with AI.' });
+      return;
+    }
 
     const idea = ideaText.trim();
     if (!idea) {
@@ -177,33 +295,30 @@ export default function HackStackStudioPage() {
     } catch (err) {
       const reason = describeFailure(err);
       patchStep('model', { label: `Live call failed: ${reason}`, status: 'failed', ms: performance.now() - startedAt });
-      const matchedPreset = BUILT_IN_PRESETS.find((preset) => preset.ideaText === idea);
-      setData(
-        matchedPreset
-          ? matchedPreset.output
-          : synthesizeCustomHackStack({ idea, stack: stackSelection, features })
-      );
-      setResultSource(matchedPreset ? 'preset' : 'offline');
-      setResultModelLabel(null);
       setRunLog((previous) => [
         ...previous,
         {
           id: 'fallback',
-          label: matchedPreset ? `Showing the ${matchedPreset.name} preset output` : 'Built an offline result from your brief',
-          status: 'done',
+          label: `AI generation failed: ${reason}`,
+          status: 'failed',
         },
       ]);
-      setNotice({
-        tone: 'warning',
-        text: matchedPreset
-          ? `Live generation failed because ${reason}. Showing the bundled ${matchedPreset.name} output instead.`
-          : `Live generation failed because ${reason}. Showing an offline build of your idea. No model answered this run.`,
-      });
+      setNotice({ tone: 'error', text: `AI generation failed: ${reason}. Your current workspace was kept unchanged.` });
     } finally {
       setLatencyMs(Math.round(performance.now() - startedAt));
       setIsGenerating(false);
     }
-  }, [apiKey, baseUrl, features, ideaText, isGenerating, selectedModel, selectedModelOption, stackSelection]);
+  }, [apiKey, baseUrl, features, ideaText, isGenerating, selectedModel, selectedModelOption, stackSelection, user]);
+
+  const loadOfflineFallback = useCallback(() => {
+    const idea = ideaText.trim();
+    const matchedPreset = BUILT_IN_PRESETS.find((preset) => preset.ideaText === idea);
+    setData(matchedPreset ? matchedPreset.output : synthesizeCustomHackStack({ idea, stack: stackSelection, features }));
+    setResultSource(matchedPreset ? 'preset' : 'offline');
+    setResultModelLabel(null);
+    setNotice({ tone: 'info', text: matchedPreset ? `Loaded the ${matchedPreset.name} offline demo.` : 'Loaded an offline demo built from your brief. This was not generated by AI.' });
+    setRunLog((previous) => [...previous, { id: 'offline-fallback', label: 'Offline demo loaded explicitly', status: 'done' }]);
+  }, [features, ideaText, stackSelection]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -244,6 +359,42 @@ export default function HackStackStudioPage() {
       }),
     [data, activePreset, resultSource, latencyMs]
   );
+
+  const handleAgentStateChange = useCallback((state: Record<string, AgentWorkbenchState>) => {
+    if (!workspaceHydrated) return;
+    setAgentStates(state);
+  }, [workspaceHydrated]);
+
+  useEffect(() => {
+    if (!user || !supabaseBrowser || !workspaceHydrated || !supabaseHydrated || runLog.length === 0) return;
+    const supabase = supabaseBrowser;
+    const timer = window.setTimeout(() => {
+      if (autosaveInFlight.current) return;
+      autosaveInFlight.current = true;
+      const payload = {
+        owner_id: user.id,
+        project_name: data.projectName,
+        idea: ideaText,
+        stack: stackSelection,
+        features,
+        result: data,
+        workspace_state: workspaceSnapshot,
+        updated_at: new Date().toISOString(),
+      };
+      const query = projectId
+        ? supabase.from('projects').update(payload).eq('id', projectId).select('id').single()
+        : supabase.from('projects').insert(payload).select('id').single();
+      void Promise.resolve(query)
+        .then(({ data: saved, error }) => {
+          if (!error && saved?.id && !projectId) setProjectId(saved.id);
+          if (error) console.warn('Supabase workspace autosave failed:', error.message);
+        })
+        .finally(() => {
+          autosaveInFlight.current = false;
+        });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [data, features, ideaText, projectId, runLog.length, stackSelection, supabaseHydrated, user, workspaceHydrated, workspaceSnapshot]);
 
   const hasRun = runLog.length > 0;
   const downstreamStatus: StageStatus = isGenerating ? 'running' : 'done';
@@ -309,6 +460,7 @@ export default function HackStackStudioPage() {
               onFeaturesChange={setFeatures}
               isGenerating={isGenerating}
               onGenerate={() => void handleGenerate()}
+              onLoadOfflineFallback={loadOfflineFallback}
               notice={notice}
             />
             <RunLog steps={runLog} />
@@ -316,15 +468,19 @@ export default function HackStackStudioPage() {
               user={user}
               input={{ idea: ideaText, stack: stackSelection, features }}
               output={data}
+              workspaceState={workspaceSnapshot as unknown as Record<string, unknown>}
               projectId={projectId}
               onProjectSaved={setProjectId}
-              onProjectLoaded={({ id, input: loadedInput, output }) => {
+              onProjectLoaded={({ id, input: loadedInput, output, workspaceState: loadedWorkspaceState }) => {
                 setProjectId(id);
                 setIdeaText(loadedInput.idea);
                 setStackSelection(loadedInput.stack);
                 setFeatures(loadedInput.features);
                 setData(output);
                 setResultSource('live');
+                if (loadedWorkspaceState && Object.keys(loadedWorkspaceState).length > 0) {
+                  applyWorkspaceSnapshot(loadedWorkspaceState as Partial<WorkspaceSnapshot>);
+                }
               }}
               onNotice={(text) => setNotice({ tone: 'info', text })}
             />
@@ -347,6 +503,8 @@ export default function HackStackStudioPage() {
               apiKey={apiKey}
               baseUrl={selectedModel === 'openai-compatible' && baseUrl.trim() ? baseUrl.trim() : undefined}
               onNotice={(text) => setNotice({ tone: 'info', text })}
+              initialState={agentStates}
+              onStateChange={handleAgentStateChange}
             />
             <WorkspaceTabs tabs={workspaceTabs} activeTab={activeTab} onChange={setActiveTab} />
 

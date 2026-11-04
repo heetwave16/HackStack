@@ -1,12 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, CircleAlert, LoaderCircle, Play, RotateCcw } from 'lucide-react';
 import { AGENTS, type AgentId } from '@/lib/agents';
 import type { ModelOption } from './models';
 
 type AgentStatus = 'idle' | 'running' | 'done' | 'failed';
-type AgentState = { status: AgentStatus; output?: string; error?: string };
+export type AgentWorkbenchState = { status: AgentStatus; output?: string; error?: string };
 
 interface AgentWorkbenchProps {
   idea: string;
@@ -14,15 +14,37 @@ interface AgentWorkbenchProps {
   apiKey: string;
   baseUrl?: string;
   onNotice: (text: string) => void;
+  initialState?: Partial<Record<AgentId, AgentWorkbenchState>>;
+  onStateChange?: (state: Record<AgentId, AgentWorkbenchState>) => void;
 }
 
 const ORDER: AgentId[] = ['product', 'architecture', 'ui', 'code', 'pitch', 'qa'];
 
-export default function AgentWorkbench({ idea, model, apiKey, baseUrl, onNotice }: AgentWorkbenchProps) {
-  const [states, setStates] = useState<Record<AgentId, AgentState>>(
-    () => Object.fromEntries(ORDER.map((id) => [id, { status: 'idle' }])) as Record<AgentId, AgentState>
+export default function AgentWorkbench({ idea, model, apiKey, baseUrl, onNotice, initialState, onStateChange }: AgentWorkbenchProps) {
+  const [states, setStates] = useState<Record<AgentId, AgentWorkbenchState>>(
+    () => Object.fromEntries(ORDER.map((id) => [id, { status: 'idle' }])) as Record<AgentId, AgentWorkbenchState>
   );
   const [running, setRunning] = useState(false);
+  const restoring = useRef(false);
+
+  useEffect(() => {
+    if (!initialState || Object.keys(initialState).length === 0) {
+      return;
+    }
+    restoring.current = true;
+    setStates((previous) => {
+      const next = { ...previous, ...initialState };
+      return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+    });
+  }, [initialState]);
+
+  useEffect(() => {
+    if (restoring.current) {
+      restoring.current = false;
+      return;
+    }
+    onStateChange?.(states);
+  }, [onStateChange, states]);
 
   const context = useMemo(
     () => ORDER.map((id) => states[id].output ? `${AGENTS[id].label}:\n${states[id].output}` : '').filter(Boolean).join('\n\n'),

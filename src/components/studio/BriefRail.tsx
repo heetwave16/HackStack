@@ -31,6 +31,7 @@ interface BriefRailProps {
   onFeaturesChange: (value: string[]) => void;
   isGenerating: boolean;
   onGenerate: () => void;
+  onLoadOfflineFallback: () => void;
   notice: Notice | null;
 }
 
@@ -46,6 +47,7 @@ export default function BriefRail({
   onFeaturesChange,
   isGenerating,
   onGenerate,
+  onLoadOfflineFallback,
   notice,
 }: BriefRailProps) {
   const [featureDraft, setFeatureDraft] = useState('');
@@ -185,10 +187,17 @@ export default function BriefRail({
         </button>
 
         {notice && NoticeIcon && (
-          <p role="alert" className={`flex items-start gap-2 rounded border p-3 text-sm leading-relaxed ${NOTICE_STYLE[notice.tone]}`}>
-            <NoticeIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>{notice.text}</span>
-          </p>
+          <div role="alert" className={`flex flex-col gap-3 rounded border p-3 text-sm leading-relaxed ${NOTICE_STYLE[notice.tone]}`}>
+            <p className="flex items-start gap-2">
+              <NoticeIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>{notice.text}</span>
+            </p>
+            {notice.tone === 'error' && (
+              <button type="button" onClick={onLoadOfflineFallback} className="self-start rounded border border-line px-2.5 py-1.5 text-xs font-medium text-fg-2 hover:border-line-strong hover:text-fg">
+                Load Offline Demo Fallback
+              </button>
+            )}
+          </div>
         )}
       </div>
     </section>
