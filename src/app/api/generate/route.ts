@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { buildHackStackUserPrompt } from '@/lib/prompts';
+import { buildHackStackUserPrompt, HACKSTACK_SYSTEM_PROMPT } from '@/lib/prompts';
 import { passesGeneratedCodeChecks, validateHackStackOutput } from '@/lib/validator';
 import { FALLBACK_HACKSTACK_RESULT, type HackStackInput, type HackStackOutput } from '@/types/hackstack';
 import { getUserIdFromAccessToken, persistGenerationRun } from '@/lib/supabase';
@@ -24,8 +24,13 @@ const requestSchema = z.object({
 
 type ModelConfig = NonNullable<z.infer<typeof requestSchema>['modelConfig']>;
 
-function cleanAndParseJson(text: string): unknown {
-  let cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+export function cleanAndParseJson(text: string): unknown {
+  let cleaned = text
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
   try {
     return JSON.parse(cleaned);
   } catch {
@@ -42,6 +47,36 @@ function cleanAndParseJson(text: string): unknown {
     }
     return JSON.parse(output);
   }
+}
+
+export function repairGeneratedOutput(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data;
+  const candidate = structuredClone(data) as Record<string, unknown>;
+  const previewApp = candidate.previewApp as Record<string, unknown> | undefined;
+  if (previewApp && Array.isArray(previewApp.columns) && Array.isArray(previewApp.sampleRows)) {
+    const columns = previewApp.columns.filter((column): column is string => typeof column === 'string');
+    previewApp.sampleRows = previewApp.sampleRows.map((row) => {
+      const source = row && typeof row === 'object' ? row as Record<string, unknown> : {};
+      return Object.fromEntries(columns.map((column) => [column, typeof source[column] === 'string' ? source[column] : '']));
+    });
+  }
+  const pitchDeck = candidate.pitchDeck;
+  if (Array.isArray(pitchDeck) && pitchDeck.length === 10) {
+    pitchDeck.forEach((slide, index) => {
+      if (slide && typeof slide === 'object') (slide as Record<string, unknown>).slideNumber = index + 1;
+    });
+  }
+  const segments = (candidate.demoKit as Record<string, unknown> | undefined)?.scriptSegments;
+  const expectedTimes = ['0:00 - 0:15', '0:15 - 0:30', '0:30 - 0:45', '0:45 - 1:00'];
+  if (Array.isArray(segments) && segments.length === 4) {
+    segments.forEach((segment, index) => {
+      if (segment && typeof segment === 'object') {
+        const item = segment as Record<string, unknown>;
+        if (typeof item.timeRange !== 'string' || !/\d+:\d+\s*-\s*\d+:\d+/.test(item.timeRange)) item.timeRange = expectedTimes[index];
+      }
+    });
+  }
+  return candidate;
 }
 
 function resolveApiKey(config: ModelConfig): string | null {
@@ -109,11 +144,12 @@ export async function POST(request: Request) {
       model: config.modelId,
       apiKey,
       baseUrl: config.provider === 'openai-compatible' ? config.baseUrl : undefined,
-      system: 'You are HackStack. Return only the complete JSON object matching the requested schema. Never include markdown fences.',
+      system: HACKSTACK_SYSTEM_PROMPT,
       user: `${buildHackStackUserPrompt(input)}\n\nReturn the complete HackStack JSON output and follow every schema constraint.`,
-      timeoutMs: 45_000
+      timeoutMs: 45_000,
+      maxTokens: 12_000
     });
-    const parsedJson = cleanAndParseJson(text);
+    const parsedJson = repairGeneratedOutput(cleanAndParseJson(text));
     const candidate = {
       ...(parsedJson as object),
       validation: { schemaValid: true, compileCheckPassed: false, usedFallback: false, modelUsed: config.modelId }

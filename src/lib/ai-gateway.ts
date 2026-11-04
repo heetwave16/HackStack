@@ -12,6 +12,7 @@ export interface GatewayRequest {
   system: string;
   user: string;
   timeoutMs: number;
+  maxTokens?: number;
 }
 
 export class GatewayError extends Error {
@@ -50,7 +51,10 @@ async function callChatCompletions(request: GatewayRequest): Promise<string> {
     body: JSON.stringify({
       model: request.model,
       temperature: 0.3,
-      response_format: { type: 'json_object' },
+      max_tokens: request.maxTokens ?? 12_000,
+      ...(request.provider === 'openrouter'
+        ? { reasoning: { effort: 'low' } }
+        : { response_format: { type: 'json_object' } }),
       messages: [
         { role: 'system', content: request.system },
         { role: 'user', content: request.user }
@@ -101,7 +105,59 @@ async function callGemini(request: GatewayRequest): Promise<string> {
 export async function generateWithGateway(request: GatewayRequest): Promise<string> {
   if (!request.apiKey.trim()) throw new GatewayError('Add an API key to generate a live result', 'missing_key');
   if (request.provider === 'gemini') return callGemini(request);
-  return callChatCompletions(request);
+  if (request.provider !== 'openrouter') return callChatCompletions(request);
+
+  const resolvedModel = await resolveOpenRouterModel(request.apiKey, request.model);
+  const resolvedRequest = { ...request, model: resolvedModel };
+  try {
+    return await callChatCompletions(resolvedRequest);
+  } catch (error) {
+    if (!(error instanceof GatewayError) || (error.status !== 400 && error.status !== 404)) throw error;
+    const retryModel = await resolveOpenRouterModel(request.apiKey, request.model, true);
+    if (retryModel === resolvedModel) throw error;
+    return callChatCompletions({ ...request, model: retryModel });
+  }
+}
+
+type OpenRouterModel = {
+  id: string;
+  name?: string;
+  pricing?: { prompt?: string; completion?: string };
+  context_length?: number;
+  supported_parameters?: string[];
+};
+
+const EXCLUDED_MODEL_TERMS = ['embed', 'rerank', 'safety', 'guard', 'transcribe'];
+
+function parameterCountInBillions(model: OpenRouterModel): number | null {
+  const match = `${model.id} ${model.name ?? ''}`.match(/\b(\d+(?:\.\d+)?)b\b/i);
+  return match ? Number(match[1]) : null;
+}
+
+function isUsableFreeModel(model: OpenRouterModel): boolean {
+  const identity = `${model.id} ${model.name ?? ''}`.toLowerCase();
+  const parameters = parameterCountInBillions(model);
+  return Boolean(
+    model.id &&
+    model.context_length &&
+    Number(model.context_length) >= 8_000 &&
+    model.pricing?.prompt === '0' &&
+    model.pricing?.completion === '0' &&
+    !EXCLUDED_MODEL_TERMS.some((term) => identity.includes(term)) &&
+    !/\b(?:[0-6](?:\.\d+)?)b\b/i.test(identity) &&
+    (parameters === null || parameters >= 7)
+  );
+}
+
+function freeModelScore(model: { id: string; name: string; contextLength: number }): number {
+  const identity = `${model.id} ${model.name}`.toLowerCase();
+  let score = Math.min(model.contextLength / 10_000, 10);
+  if (identity.includes('nemotron')) score += 40;
+  if (identity.includes('llama-3.3-70b') || identity.includes('llama 3.3 70b')) score += 35;
+  if (identity.includes('qwen')) score += 30;
+  if (identity.includes('deepseek')) score += 25;
+  if (identity.includes('instruct') || identity.includes('coder')) score += 10;
+  return score;
 }
 
 export async function listOpenRouterModels(apiKey: string) {
@@ -110,11 +166,23 @@ export async function listOpenRouterModels(apiKey: string) {
     signal: AbortSignal.timeout(10_000)
   });
   if (!response.ok) throw new GatewayError(providerMessage('OpenRouter', response.status, await response.text().catch(() => '')), 'provider', response.status);
-  const json = (await response.json()) as { data?: { id: string; name?: string; pricing?: { prompt?: string; completion?: string }; context_length?: number }[] };
+  const json = (await response.json()) as { data?: OpenRouterModel[] };
   return (json.data ?? [])
-    .filter((model) => model.id && model.context_length && Number(model.context_length) >= 8000)
-    .map((model) => ({ id: model.id, name: model.name ?? model.id, contextLength: model.context_length, free: model.pricing?.prompt === '0' && model.pricing?.completion === '0' }))
-    .sort((a, b) => Number(b.free) - Number(a.free) || a.name.localeCompare(b.name));
+    .filter(isUsableFreeModel)
+    .map((model) => ({ id: model.id, name: model.name ?? model.id, contextLength: Number(model.context_length), free: true }))
+    .sort((a, b) => freeModelScore(b) - freeModelScore(a) || a.name.localeCompare(b.name));
+}
+
+export async function resolveOpenRouterModel(apiKey: string, requestedModel: string, forceRefresh = false): Promise<string> {
+  if (!forceRefresh && requestedModel !== 'openrouter/free' && requestedModel.trim()) return requestedModel;
+  const models = await listOpenRouterModels(apiKey);
+  if (models.length === 0) {
+    throw new GatewayError('OpenRouter has no suitable free text-generation models available. Choose a specific model or use offline build.', 'provider', 404);
+  }
+  if (!forceRefresh && requestedModel !== 'openrouter/free' && models.some((model) => model.id === requestedModel)) {
+    return requestedModel;
+  }
+  return models[0].id;
 }
 
 export { HACKSTACK_SYSTEM_PROMPT };

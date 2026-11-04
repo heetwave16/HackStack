@@ -23,9 +23,10 @@ export async function POST(request: Request) {
       model: input.model,
       apiKey,
       baseUrl: input.baseUrl,
-      system: 'You are a specialist agent in a software product workbench. Return a clear structured artifact, not filler.',
+      system: 'You are a Domain-Specific Full-Stack Architect team member. Produce idea-specific, implementation-ready work with real domain logic and no boilerplate placeholders.',
       user: buildAgentPrompt(input.agent, input.idea, input.context),
-      timeoutMs: 45_000
+      timeoutMs: 30_000,
+      maxTokens: 6_000
     });
     return NextResponse.json({ agent: input.agent, output });
   } catch (error) {

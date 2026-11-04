@@ -59,12 +59,20 @@ export default function AgentWorkbench({ idea, model, apiKey, baseUrl, onNotice 
   async function runAll() {
     if (running) return;
     setRunning(true);
-    let accumulated = '';
     try {
-      for (const agent of ORDER) {
-        const output = await runAgent(agent, accumulated);
-        accumulated += `${AGENTS[agent].label}:\n${output}\n\n`;
-      }
+      const product = await runAgent('product', '');
+      const productContext = `${AGENTS.product.label}:\n${product}`;
+      const [architecture, ui] = await Promise.all([
+        runAgent('architecture', productContext),
+        runAgent('ui', productContext)
+      ]);
+      const buildContext = `${productContext}\n\n${AGENTS.architecture.label}:\n${architecture}\n\n${AGENTS.ui.label}:\n${ui}`;
+      const [code, pitch] = await Promise.all([
+        runAgent('code', buildContext),
+        runAgent('pitch', buildContext)
+      ]);
+      const qaContext = `${buildContext}\n\n${AGENTS.code.label}:\n${code}\n\n${AGENTS.pitch.label}:\n${pitch}`;
+      await runAgent('qa', qaContext);
       onNotice('All six specialist agents completed.');
     } catch (error) {
       onNotice(error instanceof Error ? error.message : 'Agent pipeline stopped.');
