@@ -1,6 +1,8 @@
 import { Copy, Eye, EyeOff, PanelLeftClose, PanelLeftOpen, Sparkles } from 'lucide-react';
 import { MODEL_OPTIONS, type ModelId } from './models';
 import { CONTROL } from './ui';
+import AuthPanel from './AuthPanel';
+import type { User } from '@supabase/supabase-js';
 
 export type StatusTone = 'running' | 'live' | 'offline' | 'preset';
 export interface StatusChip {
@@ -30,6 +32,7 @@ interface StudioHeaderProps {
   status: StatusChip;
   linkCopied: boolean;
   onCopyLink: () => void;
+  onUserChange: (user: User | null) => void;
 }
 
 export default function StudioHeader({
@@ -47,6 +50,7 @@ export default function StudioHeader({
   status,
   linkCopied,
   onCopyLink,
+  onUserChange,
 }: StudioHeaderProps) {
   return (
     <header className="sticky top-0 z-40 flex min-h-16 flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-line bg-surface-0/90 px-4 py-3 backdrop-blur-xl lg:h-16 lg:flex-nowrap lg:py-0">
@@ -115,6 +119,7 @@ export default function StudioHeader({
           >
             {showKey ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
           </button>
+          <AuthPanel onUserChange={onUserChange} />
         </div>
 
         <span

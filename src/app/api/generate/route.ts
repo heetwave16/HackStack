@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { HACKSTACK_SYSTEM_PROMPT, buildHackStackUserPrompt } from '@/lib/prompts';
 import { passesGeneratedCodeChecks, validateHackStackOutput } from '@/lib/validator';
 import { FALLBACK_HACKSTACK_RESULT, type HackStackInput, type HackStackOutput } from '@/types/hackstack';
-import { persistGenerationRun } from '@/lib/supabase';
+import { getUserIdFromAccessToken, persistGenerationRun } from '@/lib/supabase';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';
@@ -210,13 +210,15 @@ function buildFallbackResponse(reason: string): HackStackOutput {
 async function respondWithRun(
   output: HackStackOutput,
   input: HackStackInput,
-  startedAt: number
+  startedAt: number,
+  userId: string | null
 ): Promise<NextResponse> {
   await persistGenerationRun({
     input,
     output,
     latencyMs: Date.now() - startedAt,
-    source: output.validation.usedFallback ? 'fallback' : 'live'
+    source: output.validation.usedFallback ? 'fallback' : 'live',
+    userId
   });
   return NextResponse.json(output);
 }
@@ -234,6 +236,10 @@ export async function POST(request: Request) {
   }
 
   const input: HackStackInput = parsedBody.data;
+  const authorization = request.headers.get('authorization');
+  const userId = await getUserIdFromAccessToken(
+    authorization?.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : null
+  );
   const config: ModelConfig = input.modelConfig ?? {
     provider: 'gemini',
     modelId: 'gemini-3.5-flash',
@@ -242,7 +248,7 @@ export async function POST(request: Request) {
 
   const apiKey = resolveApiKey(config);
   if (!apiKey) {
-    return respondWithRun(buildFallbackResponse('no API key provided'), input, startedAt);
+    return respondWithRun(buildFallbackResponse('no API key provided'), input, startedAt, userId);
   }
 
   const prompt = buildHackStackUserPrompt(input);
@@ -260,16 +266,17 @@ export async function POST(request: Request) {
       });
 
       if (checked.success) {
-        return respondWithRun(checked.data, input, startedAt);
+        return respondWithRun(checked.data, input, startedAt, userId);
       }
-      return respondWithRun(buildFallbackResponse('validation failed on model output'), input, startedAt);
+      return respondWithRun(buildFallbackResponse('validation failed on model output'), input, startedAt, userId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'openai-compatible request failed';
       console.warn('OpenAI-compatible failed, using fallback:', msg);
       return respondWithRun(
         buildFallbackResponse(msg.includes('endpoint') || msg.includes('host') ? 'unsafe custom endpoint' : 'provider request failed'),
         input,
-        startedAt
+        startedAt,
+        userId
       );
     }
   }
@@ -293,7 +300,7 @@ export async function POST(request: Request) {
       });
 
       if (checked.success) {
-        return respondWithRun(checked.data, input, startedAt);
+        return respondWithRun(checked.data, input, startedAt, userId);
       }
 
       console.warn(`Gemini output on ${model} failed schema validation:`, checked.errors.slice(0, 3));
@@ -307,5 +314,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return respondWithRun(buildFallbackResponse('all candidate models failed'), input, startedAt);
+  return respondWithRun(buildFallbackResponse('all candidate models failed'), input, startedAt, userId);
 }

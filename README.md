@@ -3,4 +3,4 @@ For student hackathon teams, HackStack turns a 2–3 sentence idea into a workin
 
 ## Optional Supabase persistence
 
-Copy `.env.example` to `.env.local`, add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then run `supabase/schema.sql` in the Supabase SQL editor. Generation runs are persisted server-side in `hackstack_runs`; the app continues to work without these variables.
+Copy `.env.example` to `.env.local`, add the Supabase URL and publishable key for browser auth, optionally add the server-only service role key, then run `supabase/schema.sql` in the Supabase SQL editor. Email magic-link auth, saved projects, generation history, collaborator invites, and private share links are backed by RLS-protected tables. Recent projects can be loaded back into the workbench, pending invites are accepted after sign-in, and share links render read-only project views by default. The app continues to work in offline/demo mode without these variables.

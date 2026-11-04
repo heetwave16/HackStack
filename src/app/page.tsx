@@ -22,6 +22,9 @@ import { formatDuration } from '@/components/studio/format';
 import type { Notice, PipelineStage, ResultSource, RunStep, StageStatus, StudioTab } from '@/components/studio/types';
 import { toStudioResult } from '@/lib/studio-result';
 import { validateHackStackOutput } from '@/lib/validator';
+import type { User } from '@supabase/supabase-js';
+import ProjectPanel from '@/components/studio/ProjectPanel';
+import { supabaseBrowser } from '@/lib/supabase-browser';
 
 const CODE_FILE_COUNT = 5;
 const INITIAL_PRESET = BUILT_IN_PRESETS[0];
@@ -58,6 +61,8 @@ export default function HackStackStudioPage() {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
 
   const activePreset = BUILT_IN_PRESETS.find((preset) => preset.ideaText === ideaText.trim()) ?? null;
   const selectedModelOption = MODEL_OPTIONS.find((option) => option.id === selectedModel) ?? MODEL_OPTIONS[1];
@@ -115,9 +120,15 @@ export default function HackStackStudioPage() {
 
     try {
       const requestStartedAt = performance.now();
+      const { data: sessionData } = supabaseBrowser ? await supabaseBrowser.auth.getSession() : { data: { session: null } };
       const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sessionData.session?.access_token
+            ? { Authorization: `Bearer ${sessionData.session.access_token}` }
+            : {})
+        },
         body: JSON.stringify({ idea, stack: stackSelection, features, modelConfig }),
       });
       if (!response.ok) {
@@ -253,6 +264,7 @@ export default function HackStackStudioPage() {
         status={statusChip}
         linkCopied={linkCopied}
         onCopyLink={handleCopyLink}
+        onUserChange={setUser}
       />
 
       <div className="flex flex-1 flex-col lg:flex-row">
@@ -276,6 +288,22 @@ export default function HackStackStudioPage() {
               notice={notice}
             />
             <RunLog steps={runLog} />
+            <ProjectPanel
+              user={user}
+              input={{ idea: ideaText, stack: stackSelection, features }}
+              output={data}
+              projectId={projectId}
+              onProjectSaved={setProjectId}
+              onProjectLoaded={({ id, input: loadedInput, output }) => {
+                setProjectId(id);
+                setIdeaText(loadedInput.idea);
+                setStackSelection(loadedInput.stack);
+                setFeatures(loadedInput.features);
+                setData(output);
+                setResultSource('live');
+              }}
+              onNotice={(text) => setNotice({ tone: 'info', text })}
+            />
           </aside>
         )}
 
