@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { HACKSTACK_SYSTEM_PROMPT, buildHackStackUserPrompt } from '@/lib/prompts';
 import { passesGeneratedCodeChecks, validateHackStackOutput } from '@/lib/validator';
 import { FALLBACK_HACKSTACK_RESULT, type HackStackInput, type HackStackOutput } from '@/types/hackstack';
+import { persistGenerationRun } from '@/lib/supabase';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';
@@ -206,7 +207,22 @@ function buildFallbackResponse(reason: string): HackStackOutput {
   };
 }
 
+async function respondWithRun(
+  output: HackStackOutput,
+  input: HackStackInput,
+  startedAt: number
+): Promise<NextResponse> {
+  await persistGenerationRun({
+    input,
+    output,
+    latencyMs: Date.now() - startedAt,
+    source: output.validation.usedFallback ? 'fallback' : 'live'
+  });
+  return NextResponse.json(output);
+}
+
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   const rawBody = await request.json().catch(() => null);
   const parsedBody = requestSchema.safeParse(rawBody);
 
@@ -226,7 +242,7 @@ export async function POST(request: Request) {
 
   const apiKey = resolveApiKey(config);
   if (!apiKey) {
-    return NextResponse.json(buildFallbackResponse('no API key provided'));
+    return respondWithRun(buildFallbackResponse('no API key provided'), input, startedAt);
   }
 
   const prompt = buildHackStackUserPrompt(input);
@@ -244,13 +260,17 @@ export async function POST(request: Request) {
       });
 
       if (checked.success) {
-        return NextResponse.json(checked.data);
+        return respondWithRun(checked.data, input, startedAt);
       }
-      return NextResponse.json(buildFallbackResponse('validation failed on model output'));
+      return respondWithRun(buildFallbackResponse('validation failed on model output'), input, startedAt);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'openai-compatible request failed';
       console.warn('OpenAI-compatible failed, using fallback:', msg);
-      return NextResponse.json(buildFallbackResponse(msg.includes('endpoint') || msg.includes('host') ? 'unsafe custom endpoint' : 'provider request failed'));
+      return respondWithRun(
+        buildFallbackResponse(msg.includes('endpoint') || msg.includes('host') ? 'unsafe custom endpoint' : 'provider request failed'),
+        input,
+        startedAt
+      );
     }
   }
 
@@ -273,7 +293,7 @@ export async function POST(request: Request) {
       });
 
       if (checked.success) {
-        return NextResponse.json(checked.data);
+        return respondWithRun(checked.data, input, startedAt);
       }
 
       console.warn(`Gemini output on ${model} failed schema validation:`, checked.errors.slice(0, 3));
@@ -287,5 +307,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json(buildFallbackResponse('all candidate models failed'));
+  return respondWithRun(buildFallbackResponse('all candidate models failed'), input, startedAt);
 }

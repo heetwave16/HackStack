@@ -259,7 +259,7 @@ export default function HackStackStudioPage() {
         {railOpen && (
           <aside
             id="studio-brief"
-            className="flex w-full shrink-0 flex-col gap-8 border-b border-line bg-surface-1 p-4 lg:sticky lg:top-14 lg:h-[calc(100vh-3.5rem)] lg:w-[340px] lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-5"
+            className="flex w-full shrink-0 flex-col gap-8 border-b border-line bg-surface-1/55 p-4 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:w-[320px] lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-5"
           >
             <BriefRail
               presets={BUILT_IN_PRESETS}
@@ -282,7 +282,7 @@ export default function HackStackStudioPage() {
         <main className="flex min-w-0 flex-1 flex-col">
           <PipelineStrip stages={stages} activeTab={activeTab} onSelect={setActiveTab} />
 
-          <div className="w-full max-w-6xl px-4 py-6 lg:px-8">
+          <div className="w-full max-w-[1440px] px-4 py-6 lg:px-10 lg:py-8">
             <NodeGraph
               data={data}
               activeTab={activeTab}
@@ -291,7 +291,7 @@ export default function HackStackStudioPage() {
             />
             <WorkspaceTabs tabs={workspaceTabs} activeTab={activeTab} onChange={setActiveTab} />
 
-            <div id={`panel-${activeTab}`} role="tabpanel" aria-labelledby={`tab-${activeTab}`} className="pt-6">
+            <div id={`panel-${activeTab}`} role="tabpanel" aria-labelledby={`tab-${activeTab}`} className="pt-7">
               {isGenerating ? (
                 <WorkspaceSkeleton />
               ) : (

@@ -5,8 +5,8 @@ import { SECTION_LABEL } from './ui';
 
 export default function RunLog({ steps }: { steps: RunStep[] }) {
   return (
-    <section aria-label="Run log" className="flex flex-col gap-3">
-      <h2 className={SECTION_LABEL}>Run log</h2>
+    <section aria-label="Run log" className="flex flex-col gap-3 border-t border-line pt-5">
+      <h2 className="eyebrow">Session notes</h2>
       {steps.length === 0 ? (
         <p className="text-sm leading-relaxed text-fg-3">No run yet. Each step of a generation appears here with its timing.</p>
       ) : (

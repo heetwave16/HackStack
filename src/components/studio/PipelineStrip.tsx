@@ -25,7 +25,7 @@ interface PipelineStripProps {
 
 export default function PipelineStrip({ stages, activeTab, onSelect }: PipelineStripProps) {
   return (
-    <nav aria-label="Pipeline" className="flex h-12 items-center overflow-x-auto border-b border-line px-4 lg:px-8">
+    <nav aria-label="Pipeline" className="flex h-11 items-center overflow-x-auto border-b border-line bg-surface-0/40 px-4 lg:px-8">
       <ol className="flex min-w-max items-center gap-1">
         {stages.map((stage, index) => {
           const isActive = stage.tab !== undefined && stage.tab === activeTab;
@@ -39,7 +39,7 @@ export default function PipelineStrip({ stages, activeTab, onSelect }: PipelineS
               )}
             </>
           );
-          const itemClass = 'flex h-8 items-center gap-2 rounded px-2 transition-colors';
+          const itemClass = 'flex h-7 items-center gap-2 rounded-md px-2 text-xs transition-colors';
           return (
             <li key={stage.id} className="flex items-center gap-1">
               {stage.tab ? (
