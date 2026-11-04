@@ -50,7 +50,6 @@ async function callChatCompletions(request: GatewayRequest): Promise<string> {
     body: JSON.stringify({
       model: request.model,
       temperature: 0.3,
-      response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: request.system },
         { role: 'user', content: request.user }
