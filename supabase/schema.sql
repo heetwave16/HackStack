@@ -56,11 +56,28 @@ create table if not exists public.project_share_links (
 create index if not exists hackstack_runs_created_at_idx
   on public.hackstack_runs (created_at desc);
 
+create table if not exists public.agent_runs (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid references public.projects(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  agent_id text not null check (agent_id in ('product', 'architecture', 'ui', 'code', 'pitch', 'qa')),
+  status text not null default 'queued' check (status in ('queued', 'running', 'completed', 'failed')),
+  input jsonb not null default '{}'::jsonb,
+  output jsonb,
+  error text,
+  created_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+
+create index if not exists agent_runs_project_created_at_idx
+  on public.agent_runs (project_id, created_at desc);
+
 alter table public.hackstack_runs enable row level security;
 alter table public.projects enable row level security;
 alter table public.project_members enable row level security;
 alter table public.project_invites enable row level security;
 alter table public.project_share_links enable row level security;
+alter table public.agent_runs enable row level security;
 
 create or replace function public.is_project_member(target_project uuid)
 returns boolean language sql security definer set search_path = public as $$
@@ -72,6 +89,7 @@ returns boolean language sql security definer set search_path = public as $$
 $$;
 
 create policy "users read own runs" on public.hackstack_runs for select using (user_id = auth.uid());
+create policy "users manage own agent runs" on public.agent_runs for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy "owners manage projects" on public.projects for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
 create policy "members read projects" on public.projects for select using (public.is_project_member(id));
 create policy "members read membership" on public.project_members for select using (user_id = auth.uid() or public.is_project_member(project_id));

@@ -1,4 +1,4 @@
-export type AIProvider = 'gemini' | 'openai-compatible';
+export type AIProvider = 'openrouter' | 'gemini' | 'openai-compatible';
 
 export type JudgingCriterion =
   | 'Product Thinking'
@@ -55,6 +55,7 @@ export interface HackStackOutput {
     compileCheckPassed: boolean;
     usedFallback: boolean;
     modelUsed?: string;
+    fallbackReason?: string;
   };
   previewApp: {
     primaryEntityName: string;

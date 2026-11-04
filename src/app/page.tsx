@@ -16,7 +16,7 @@ import PipelineStrip from '@/components/studio/PipelineStrip';
 import WorkspaceTabs, { type WorkspaceTab } from '@/components/studio/WorkspaceTabs';
 import WorkspaceSkeleton from '@/components/studio/WorkspaceSkeleton';
 import NodeGraph from '@/components/NodeGraph';
-import { DEFAULT_MODEL_ID, MODEL_OPTIONS, type ModelId } from '@/components/studio/models';
+import { DEFAULT_MODEL_ID, MODEL_OPTIONS, type ModelId, type ModelOption } from '@/components/studio/models';
 import { GenerationError, describeFailure, readApiError } from '@/components/studio/describe-failure';
 import { formatDuration } from '@/components/studio/format';
 import type { Notice, PipelineStage, ResultSource, RunStep, StageStatus, StudioTab } from '@/components/studio/types';
@@ -25,6 +25,7 @@ import { validateHackStackOutput } from '@/lib/validator';
 import type { User } from '@supabase/supabase-js';
 import ProjectPanel from '@/components/studio/ProjectPanel';
 import { supabaseBrowser } from '@/lib/supabase-browser';
+import AgentWorkbench from '@/components/studio/AgentWorkbench';
 
 const CODE_FILE_COUNT = 5;
 const INITIAL_PRESET = BUILT_IN_PRESETS[0];
@@ -54,6 +55,7 @@ export default function HackStackStudioPage() {
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [showKey, setShowKey] = useState(false);
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>(MODEL_OPTIONS);
 
   const [ideaText, setIdeaText] = useState(INITIAL_PRESET.ideaText);
   const [stackSelection, setStackSelection] = useState(INITIAL_PRESET.stack);
@@ -65,7 +67,28 @@ export default function HackStackStudioPage() {
   const [projectId, setProjectId] = useState<string | null>(null);
 
   const activePreset = BUILT_IN_PRESETS.find((preset) => preset.ideaText === ideaText.trim()) ?? null;
-  const selectedModelOption = MODEL_OPTIONS.find((option) => option.id === selectedModel) ?? MODEL_OPTIONS[1];
+  const selectedModelOption = availableModels.find((option) => option.id === selectedModel) ?? availableModels[0];
+
+  useEffect(() => {
+    if (!apiKey.trim() || selectedModelOption?.provider !== 'openrouter') return;
+    const controller = new AbortController();
+    void fetch('/api/ai/models', {
+      headers: { Authorization: `Bearer ${apiKey.trim()}` },
+      signal: controller.signal
+    })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const body = await response.json() as { models?: { id: string; name: string; free?: boolean }[] };
+        const discovered = (body.models ?? []).slice(0, 80).map((model) => ({
+          id: model.id,
+          label: `${model.name}${model.free ? ' · free' : ''}`,
+          provider: 'openrouter' as const
+        }));
+        if (discovered.length > 0) setAvailableModels([...MODEL_OPTIONS.slice(0, 1), ...discovered, ...MODEL_OPTIONS.slice(1)]);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [apiKey, selectedModelOption?.provider]);
 
   const applyPreset = useCallback((preset: HackStackPreset) => {
     setIdeaText(preset.ideaText);
@@ -148,7 +171,7 @@ export default function HackStackStudioPage() {
       setNotice({
         tone: usedFallback ? 'warning' : 'info',
         text: usedFallback
-          ? `No model answered this run. Showing the offline fallback in ${formatDuration(requestMs)}.`
+          ? `Model generation failed: ${json.validation.fallbackReason ?? 'provider request failed'}. Showing the offline fallback.`
           : `Generated with ${json.validation.modelUsed ?? selectedModelOption.label} in ${formatDuration(requestMs)}.`
       });
     } catch (err) {
@@ -254,6 +277,7 @@ export default function HackStackStudioPage() {
         onToggleRail={() => setRailOpen((open) => !open)}
         modelId={selectedModel}
         onModelChange={setSelectedModel}
+        modelOptions={availableModels}
         isCustomModel={selectedModel === 'openai-compatible'}
         baseUrl={baseUrl}
         onBaseUrlChange={setBaseUrl}
@@ -316,6 +340,13 @@ export default function HackStackStudioPage() {
               activeTab={activeTab}
               modelLabel={resultModelLabel ?? selectedModelOption.label}
               onSelect={setActiveTab}
+            />
+            <AgentWorkbench
+              idea={ideaText}
+              model={selectedModelOption}
+              apiKey={apiKey}
+              baseUrl={selectedModel === 'openai-compatible' && baseUrl.trim() ? baseUrl.trim() : undefined}
+              onNotice={(text) => setNotice({ tone: 'info', text })}
             />
             <WorkspaceTabs tabs={workspaceTabs} activeTab={activeTab} onChange={setActiveTab} />
 
