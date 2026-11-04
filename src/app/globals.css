@@ -4,6 +4,8 @@
 
 :root {
   color-scheme: dark;
+  --font-inter: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-jetbrains-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --surface-0: 9 13 22;
   --surface-1: 13 19 34;
   --surface-2: 19 28 46;

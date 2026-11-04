@@ -15,7 +15,7 @@ export const hackStackOutputSchema = z.object({
   previewApp: z.object({
     primaryEntityName: z.string().min(1).max(120),
     metrics: z.array(z.object({ label: z.string(), value: z.string(), trend: z.string() })).length(3),
-    columns: z.array(z.string().min(1)).min(2).max(8),
+    columns: z.array(z.string().regex(/^[a-z][A-Za-z0-9]*$/)).min(3).max(6),
     sampleRows: z.array(z.record(z.string(), z.string())).min(1).max(10),
     quickActionLabel: z.string().min(1).max(80)
   }),
@@ -53,6 +53,24 @@ export const hackStackOutputSchema = z.object({
       .min(4)
       .max(6)
   })
+}).superRefine((value, ctx) => {
+  const columns = new Set(value.previewApp.columns);
+  value.previewApp.sampleRows.forEach((row, index) => {
+    if (Object.keys(row).some((key) => !columns.has(key)) || columns.size !== Object.keys(row).length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['previewApp', 'sampleRows', index], message: 'row keys must match preview columns exactly' });
+    }
+  });
+  const slideNumbers = value.pitchDeck.map((slide) => slide.slideNumber);
+  if (slideNumbers.some((number, index) => number !== index + 1)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['pitchDeck'], message: 'slides must be numbered 1 through 10 in order' });
+  }
+  const expectedTimes = ['0:00 - 0:15', '0:15 - 0:30', '0:30 - 0:45', '0:45 - 1:00'];
+  if (value.demoKit.scriptSegments.map((segment) => segment.timeRange).join('|') !== expectedTimes.join('|')) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['demoKit', 'scriptSegments'], message: 'script must contain the four required 15-second ranges' });
+  }
+  if (new Set(value.demoKit.buildNextChecklist.map((item) => item.judgingCriteria)).size !== value.demoKit.buildNextChecklist.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['demoKit', 'buildNextChecklist'], message: 'checklist criteria must be distinct' });
+  }
 });
 
 export type ValidationResult =
@@ -66,4 +84,15 @@ export function validateHackStackOutput(data: unknown): ValidationResult {
     success: false,
     errors: parsed.error.issues.map((issue) => `${issue.path.join('.') || 'root'}: ${issue.message}`)
   };
+}
+
+export function passesGeneratedCodeChecks(data: unknown): boolean {
+  if (!hackStackOutputSchema.safeParse(data).success) return false;
+  const output = data as HackStackOutput;
+  return (
+    /datasource\s+db[\s\S]*provider\s*=\s*"postgresql"/i.test(output.codebase.prismaSchema) &&
+    /\bmodel\s+\w+/i.test(output.codebase.prismaSchema) &&
+    /NextResponse[\s\S]*export\s+async\s+function\s+GET[\s\S]*export\s+async\s+function\s+POST/.test(output.codebase.apiRouteCode) &&
+    /from\s+['"]vitest['"][\s\S]*describe[\s\S]*expect/.test(output.codebase.starterTestCode)
+  );
 }

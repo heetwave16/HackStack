@@ -24,6 +24,7 @@ export default function DemoTab({ data }: DemoTabProps) {
   const streamRef = useRef<MediaStream | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordedVideoUrlRef = useRef<string | null>(null);
 
   const [completedTasks, setCompletedTasks] = useState<Record<number, boolean>>({});
   const [filterCriteria, setFilterCriteria] = useState<FilterCriterion>('All');
@@ -35,6 +36,8 @@ export default function DemoTab({ data }: DemoTabProps) {
   useEffect(() => {
     setCompletedTasks({});
     setRecordingError(null);
+    if (recordedVideoUrlRef.current) URL.revokeObjectURL(recordedVideoUrlRef.current);
+    recordedVideoUrlRef.current = null;
     setRecordedVideoUrl(null);
   }, [data.projectName]);
 
@@ -42,6 +45,7 @@ export default function DemoTab({ data }: DemoTabProps) {
     return () => {
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
       streamRef.current?.getTracks().forEach((track) => track.stop());
+      if (recordedVideoUrlRef.current) URL.revokeObjectURL(recordedVideoUrlRef.current);
     };
   }, []);
 
@@ -61,6 +65,8 @@ export default function DemoTab({ data }: DemoTabProps) {
 
   const startScreenRecording = async () => {
     setRecordingError(null);
+    if (recordedVideoUrlRef.current) URL.revokeObjectURL(recordedVideoUrlRef.current);
+    recordedVideoUrlRef.current = null;
     setRecordedVideoUrl(null);
 
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getDisplayMedia) {
@@ -91,6 +97,7 @@ export default function DemoTab({ data }: DemoTabProps) {
         }
         const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
+        recordedVideoUrlRef.current = url;
         setRecordedVideoUrl(url);
         const anchor = document.createElement('a');
         anchor.href = url;

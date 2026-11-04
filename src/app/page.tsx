@@ -15,11 +15,13 @@ import RunLog from '@/components/studio/RunLog';
 import PipelineStrip from '@/components/studio/PipelineStrip';
 import WorkspaceTabs, { type WorkspaceTab } from '@/components/studio/WorkspaceTabs';
 import WorkspaceSkeleton from '@/components/studio/WorkspaceSkeleton';
+import NodeGraph from '@/components/NodeGraph';
 import { DEFAULT_MODEL_ID, MODEL_OPTIONS, type ModelId } from '@/components/studio/models';
 import { GenerationError, describeFailure, readApiError } from '@/components/studio/describe-failure';
 import { formatDuration } from '@/components/studio/format';
 import type { Notice, PipelineStage, ResultSource, RunStep, StageStatus, StudioTab } from '@/components/studio/types';
 import { toStudioResult } from '@/lib/studio-result';
+import { validateHackStackOutput } from '@/lib/validator';
 
 const CODE_FILE_COUNT = 5;
 const INITIAL_PRESET = BUILT_IN_PRESETS[0];
@@ -32,15 +34,7 @@ function splitFeatures(value: string): string[] {
 }
 
 function isHackStackOutput(value: unknown): value is HackStackOutput {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as Partial<HackStackOutput>;
-  return (
-    typeof candidate.projectName === 'string' &&
-    candidate.previewApp !== undefined &&
-    candidate.codebase !== undefined &&
-    Array.isArray(candidate.pitchDeck) &&
-    candidate.demoKit !== undefined
-  );
+  return validateHackStackOutput(value).success;
 }
 
 export default function HackStackStudioPage() {
@@ -137,9 +131,15 @@ export default function HackStackStudioPage() {
       }
       setRunLog((previous) => [...previous, { id: 'check', label: 'Result shape checked', status: 'done' }]);
       setData(json);
-      setResultSource('live');
-      setResultModelLabel(selectedModelOption.label);
-      setNotice({ tone: 'info', text: `Generated with ${selectedModelOption.label} in ${formatDuration(requestMs)}.` });
+      const usedFallback = json.validation.usedFallback;
+      setResultSource(usedFallback ? 'offline' : 'live');
+      setResultModelLabel(usedFallback ? null : json.validation.modelUsed ?? selectedModelOption.label);
+      setNotice({
+        tone: usedFallback ? 'warning' : 'info',
+        text: usedFallback
+          ? `No model answered this run. Showing the offline fallback in ${formatDuration(requestMs)}.`
+          : `Generated with ${json.validation.modelUsed ?? selectedModelOption.label} in ${formatDuration(requestMs)}.`
+      });
     } catch (err) {
       const reason = describeFailure(err);
       patchStep('model', { label: `Live call failed: ${reason}`, status: 'failed', ms: performance.now() - startedAt });
@@ -283,6 +283,12 @@ export default function HackStackStudioPage() {
           <PipelineStrip stages={stages} activeTab={activeTab} onSelect={setActiveTab} />
 
           <div className="w-full max-w-6xl px-4 py-6 lg:px-8">
+            <NodeGraph
+              data={data}
+              activeTab={activeTab}
+              modelLabel={resultModelLabel ?? selectedModelOption.label}
+              onSelect={setActiveTab}
+            />
             <WorkspaceTabs tabs={workspaceTabs} activeTab={activeTab} onChange={setActiveTab} />
 
             <div id={`panel-${activeTab}`} role="tabpanel" aria-labelledby={`tab-${activeTab}`} className="pt-6">

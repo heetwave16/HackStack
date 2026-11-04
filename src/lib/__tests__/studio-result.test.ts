@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUILT_IN_PRESETS } from '@/components/presets';
 import { humanizeKey, inferFieldType, toStudioResult, toneForValue } from '@/lib/studio-result';
 import { synthesizeCustomHackStack } from '@/components/offline-synth';
+import { validateHackStackOutput } from '@/lib/validator';
 
 describe('StudioResult contract', () => {
   it('every preset produces a valid StudioResult', () => {
@@ -41,5 +42,11 @@ describe('StudioResult contract', () => {
   it('no preset makes invented comparative claims', () => {
     const text = JSON.stringify(BUILT_IN_PRESETS.map((p) => p.output.previewApp.metrics));
     expect(text).not.toMatch(/faster than|% off retail/i);
+  });
+
+  it('rejects inconsistent generated output contracts', () => {
+    const invalid = structuredClone(BUILT_IN_PRESETS[0].output);
+    invalid.previewApp.sampleRows[0].unexpected = 'bad';
+    expect(validateHackStackOutput(invalid).success).toBe(false);
   });
 });
