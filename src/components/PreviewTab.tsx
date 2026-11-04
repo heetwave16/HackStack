@@ -20,6 +20,12 @@ function bumpLeadingNumber(metric: Metric, addedCount: number): Metric {
   return { ...metric, value: `${prefix}${next.toLocaleString('en-US')}${suffix}`, delta: `+${addedCount} added in this session` };
 }
 
+function statusOptions(field: EntityField, rows: Record<string, string>[]): string[] {
+  const values = rows.map((row) => row[field.key]).filter(Boolean);
+  const defaults = ['Pending', 'Active', 'Completed'];
+  return Array.from(new Set([...values, ...defaults]));
+}
+
 const TONE_CLASS: Record<Tone, string> = {
   success: 'border-[#10B981]/30 bg-[#10B981]/10 text-[#34D399]',
   info: 'border-[#38BDF8]/30 bg-[#38BDF8]/10 text-[#7DD3FC]',
@@ -93,6 +99,24 @@ export default function PreviewTab({ result }: PreviewTabProps) {
     setAddedCount(nextAddedCount);
     setMetrics((prev) => prev.map((metric, idx) => (idx === 0 ? bumpLeadingNumber(metric, nextAddedCount) : metric)));
     handleCloseModal();
+  };
+
+  const handleStatusTransition = (targetRow: Record<string, string>, field: EntityField) => {
+    const options = statusOptions(field, rows);
+    setRows((previous) =>
+      previous.map((row) => {
+        if (row !== targetRow) return row;
+        const currentIndex = options.findIndex((option) => option.toLowerCase() === row[field.key]?.toLowerCase());
+        return { ...row, [field.key]: options[(currentIndex + 1) % options.length] };
+      })
+    );
+    setMetrics((previous) =>
+      previous.map((metric, index) =>
+        index === 0
+          ? { ...metric, delta: `${rows.length} records · status updated` }
+          : metric
+      )
+    );
   };
 
   const filteredRows = useMemo(() => {
@@ -219,9 +243,19 @@ export default function PreviewTab({ result }: PreviewTabProps) {
                       return (
                         <td key={f.key} className={`whitespace-nowrap px-4 py-3 ${isNumeric(f) ? 'text-right tabular-nums' : ''}`}>
                           {f.type === 'status' ? (
-                            <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 font-mono text-[11px] ${TONE_CLASS[toneForValue(value, f)]}`}>
-                              {value}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 font-mono text-[11px] ${TONE_CLASS[toneForValue(value, f)]}`}>
+                                {value}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleStatusTransition(row, f)}
+                                className="rounded border border-[#334155] px-1.5 py-0.5 font-mono text-[10px] text-[#94A3B8] transition-colors hover:border-[#10B981] hover:text-[#34D399]"
+                                aria-label={`Advance ${f.label}`}
+                              >
+                                Advance
+                              </button>
+                            </div>
                           ) : (
                             <span className={colIndex === 0 ? 'font-medium text-[#F8FAFC]' : f.type === 'id' ? 'font-mono text-[#CBD5E1]' : 'text-[#CBD5E1]'}>{value}</span>
                           )}
@@ -280,15 +314,29 @@ export default function PreviewTab({ result }: PreviewTabProps) {
                 {result.primaryAction.fields.map((field, idx) => (
                   <label key={field.key} className="flex flex-col gap-1.5">
                     <span className="text-xs text-[#CBD5E1]">{field.label}</span>
-                    <input
-                      type="text"
-                      inputMode={isNumeric(field) ? 'decimal' : undefined}
-                      required={idx === 0}
-                      placeholder={field.label}
-                      value={formData[field.key] ?? ''}
-                      onChange={(event) => handleInputChange(field.key, event.target.value)}
-                      className="rounded-md border border-[#1E293B] bg-[#090D16] p-2.5 font-mono text-xs text-[#F8FAFC] placeholder:text-[#64748B] transition-colors focus:border-[#10B981] focus:outline-none"
-                    />
+                    {field.type === 'status' ? (
+                      <select
+                        required={idx === 0}
+                        value={formData[field.key] ?? ''}
+                        onChange={(event) => handleInputChange(field.key, event.target.value)}
+                        className="rounded-md border border-[#1E293B] bg-[#090D16] p-2.5 font-mono text-xs text-[#F8FAFC] transition-colors focus:border-[#10B981] focus:outline-none"
+                      >
+                        <option value="">Select {field.label}</option>
+                        {statusOptions(field, rows).map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        inputMode={isNumeric(field) ? 'decimal' : undefined}
+                        required={idx === 0}
+                        placeholder={field.label}
+                        value={formData[field.key] ?? ''}
+                        onChange={(event) => handleInputChange(field.key, event.target.value)}
+                        className="rounded-md border border-[#1E293B] bg-[#090D16] p-2.5 font-mono text-xs text-[#F8FAFC] placeholder:text-[#64748B] transition-colors focus:border-[#10B981] focus:outline-none"
+                      />
+                    )}
                   </label>
                 ))}
               </div>
