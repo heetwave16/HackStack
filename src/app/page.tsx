@@ -25,6 +25,7 @@ import { validateHackStackOutput } from '@/lib/validator';
 import type { User } from '@supabase/supabase-js';
 import ProjectPanel from '@/components/studio/ProjectPanel';
 import { supabaseBrowser } from '@/lib/supabase-browser';
+import AgentWorkbench from '@/components/studio/AgentWorkbench';
 
 const CODE_FILE_COUNT = 5;
 const INITIAL_PRESET = BUILT_IN_PRESETS[0];
@@ -339,6 +340,13 @@ export default function HackStackStudioPage() {
               activeTab={activeTab}
               modelLabel={resultModelLabel ?? selectedModelOption.label}
               onSelect={setActiveTab}
+            />
+            <AgentWorkbench
+              idea={ideaText}
+              model={selectedModelOption}
+              apiKey={apiKey}
+              baseUrl={selectedModel === 'openai-compatible' && baseUrl.trim() ? baseUrl.trim() : undefined}
+              onNotice={(text) => setNotice({ tone: 'info', text })}
             />
             <WorkspaceTabs tabs={workspaceTabs} activeTab={activeTab} onChange={setActiveTab} />
 
