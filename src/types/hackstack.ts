@@ -1,4 +1,4 @@
-export type AIProvider = 'gemini' | 'openai-compatible';
+export type AIProvider = 'openrouter' | 'gemini' | 'openai-compatible';
 
 export type JudgingCriterion =
   | 'Product Thinking'

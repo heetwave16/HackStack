@@ -1,5 +1,5 @@
 import { Copy, Eye, EyeOff, PanelLeftClose, PanelLeftOpen, Sparkles } from 'lucide-react';
-import { MODEL_OPTIONS, type ModelId } from './models';
+import { type ModelId, type ModelOption } from './models';
 import { CONTROL } from './ui';
 import AuthPanel from './AuthPanel';
 import type { User } from '@supabase/supabase-js';
@@ -22,6 +22,7 @@ interface StudioHeaderProps {
   onToggleRail: () => void;
   modelId: ModelId;
   onModelChange: (id: ModelId) => void;
+  modelOptions: ModelOption[];
   isCustomModel: boolean;
   baseUrl: string;
   onBaseUrlChange: (value: string) => void;
@@ -40,6 +41,7 @@ export default function StudioHeader({
   onToggleRail,
   modelId,
   onModelChange,
+  modelOptions,
   isCustomModel,
   baseUrl,
   onBaseUrlChange,
@@ -83,7 +85,7 @@ export default function StudioHeader({
           onChange={(event) => onModelChange(event.target.value as ModelId)}
           className={`${CONTROL} max-w-[190px]`}
         >
-          {MODEL_OPTIONS.map((option) => (
+          {modelOptions.map((option) => (
             <option key={option.id} value={option.id}>
               {option.label}
             </option>

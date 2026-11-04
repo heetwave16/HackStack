@@ -16,7 +16,7 @@ import PipelineStrip from '@/components/studio/PipelineStrip';
 import WorkspaceTabs, { type WorkspaceTab } from '@/components/studio/WorkspaceTabs';
 import WorkspaceSkeleton from '@/components/studio/WorkspaceSkeleton';
 import NodeGraph from '@/components/NodeGraph';
-import { DEFAULT_MODEL_ID, MODEL_OPTIONS, type ModelId } from '@/components/studio/models';
+import { DEFAULT_MODEL_ID, MODEL_OPTIONS, type ModelId, type ModelOption } from '@/components/studio/models';
 import { GenerationError, describeFailure, readApiError } from '@/components/studio/describe-failure';
 import { formatDuration } from '@/components/studio/format';
 import type { Notice, PipelineStage, ResultSource, RunStep, StageStatus, StudioTab } from '@/components/studio/types';
@@ -54,6 +54,7 @@ export default function HackStackStudioPage() {
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [showKey, setShowKey] = useState(false);
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>(MODEL_OPTIONS);
 
   const [ideaText, setIdeaText] = useState(INITIAL_PRESET.ideaText);
   const [stackSelection, setStackSelection] = useState(INITIAL_PRESET.stack);
@@ -65,7 +66,28 @@ export default function HackStackStudioPage() {
   const [projectId, setProjectId] = useState<string | null>(null);
 
   const activePreset = BUILT_IN_PRESETS.find((preset) => preset.ideaText === ideaText.trim()) ?? null;
-  const selectedModelOption = MODEL_OPTIONS.find((option) => option.id === selectedModel) ?? MODEL_OPTIONS[1];
+  const selectedModelOption = availableModels.find((option) => option.id === selectedModel) ?? availableModels[0];
+
+  useEffect(() => {
+    if (!apiKey.trim() || selectedModelOption?.provider !== 'openrouter') return;
+    const controller = new AbortController();
+    void fetch('/api/ai/models', {
+      headers: { Authorization: `Bearer ${apiKey.trim()}` },
+      signal: controller.signal
+    })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const body = await response.json() as { models?: { id: string; name: string; free?: boolean }[] };
+        const discovered = (body.models ?? []).slice(0, 80).map((model) => ({
+          id: model.id,
+          label: `${model.name}${model.free ? ' · free' : ''}`,
+          provider: 'openrouter' as const
+        }));
+        if (discovered.length > 0) setAvailableModels([...MODEL_OPTIONS.slice(0, 1), ...discovered, ...MODEL_OPTIONS.slice(1)]);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [apiKey, selectedModelOption?.provider]);
 
   const applyPreset = useCallback((preset: HackStackPreset) => {
     setIdeaText(preset.ideaText);
@@ -254,6 +276,7 @@ export default function HackStackStudioPage() {
         onToggleRail={() => setRailOpen((open) => !open)}
         modelId={selectedModel}
         onModelChange={setSelectedModel}
+        modelOptions={availableModels}
         isCustomModel={selectedModel === 'openai-compatible'}
         baseUrl={baseUrl}
         onBaseUrlChange={setBaseUrl}
