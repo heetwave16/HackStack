@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { History, Link2, Save, Send, Users } from 'lucide-react';
 import type { User } from '@supabase/supabase-js';
 import type { HackStackInput, HackStackOutput } from '@/types/hackstack';
@@ -30,6 +30,12 @@ export default function ProjectPanel({ user, input, output, projectId, onProject
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [busy, setBusy] = useState(false);
+  const [projectsRevision, setProjectsRevision] = useState(0);
+  const noticeRef = useRef(onNotice);
+
+  useEffect(() => {
+    noticeRef.current = onNotice;
+  }, [onNotice]);
 
   useEffect(() => {
     if (!user || !supabaseBrowser) {
@@ -37,16 +43,27 @@ export default function ProjectPanel({ user, input, output, projectId, onProject
       return;
     }
     const supabase = supabaseBrowser;
+    let active = true;
+    setProjects([]);
     void supabase.rpc('accept_my_project_invites');
-    void supabase
-      .from('projects')
-      .select('id, project_name, idea, stack, features, result, created_at')
-      .order('updated_at', { ascending: false })
-      .limit(5)
-      .then(({ data }) => {
+    async function loadProjects() {
+      try {
+        const { data, error } = await supabase
+          .from('projects')
+          .select('id, project_name, idea, stack, features, result, created_at')
+          .order('updated_at', { ascending: false })
+          .limit(5);
+        if (!active) return;
+        if (error) throw new Error(error.message);
         setProjects((data ?? []) as SavedProject[]);
-      });
-  }, [user, projectId]);
+      } catch (error) {
+        if (!active) return;
+        noticeRef.current(`Could not load recent projects: ${error instanceof Error ? error.message : 'Request failed'}`);
+      }
+    }
+    void loadProjects();
+    return () => { active = false; };
+  }, [user, projectId, projectsRevision]);
 
   if (!user || !supabaseBrowser) {
     return <p className="border-t border-line pt-5 text-xs leading-relaxed text-fg-3">Sign in above to save projects, invite teammates, and keep a private build history.</p>;
@@ -67,14 +84,17 @@ export default function ProjectPanel({ user, input, output, projectId, onProject
     const query = projectId
       ? supabase.from('projects').update(payload).eq('id', projectId).select('id').single()
       : supabase.from('projects').insert(payload).select('id').single();
-    const { data, error } = await query;
-    setBusy(false);
-    if (error) {
-      onNotice(error.message);
-      return;
+    try {
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
+      setProjectsRevision((revision) => revision + 1);
+      onProjectSaved(data.id);
+      onNotice(projectId ? 'Project updated in Supabase.' : 'Project saved to Supabase.');
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : 'Could not save project.');
+    } finally {
+      setBusy(false);
     }
-    onProjectSaved(data.id);
-    onNotice(projectId ? 'Project updated in Supabase.' : 'Project saved to Supabase.');
   }
 
   async function createShareLink() {

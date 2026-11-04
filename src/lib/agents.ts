@@ -69,7 +69,10 @@ function extractJsonObject(text: string): string {
 
 function normalizeTimeRange(value: unknown, index: number): string {
   const expected = ['0:00 - 0:15', '0:15 - 0:30', '0:30 - 0:45', '0:45 - 1:00'];
-  const match = String(value ?? '').match(/(\d+)\s*[-–]\s*(\d+)\s*s?/i);
+  const text = String(value ?? '').trim();
+  const timestamps = text.match(/^(\d+):([0-5]\d)\s*[-–]\s*(\d+):([0-5]\d)$/);
+  if (timestamps) return `${Number(timestamps[1])}:${timestamps[2]} - ${Number(timestamps[3])}:${timestamps[4]}`;
+  const match = text.match(/^(\d+)\s*[-–]\s*(\d+)\s*s?$/i);
   if (!match) return expected[index] ?? expected[expected.length - 1];
   const format = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   return `${format(Number(match[1]))} - ${format(Number(match[2]))}`;
@@ -94,12 +97,16 @@ export function parseAgentPatch(text: string): AgentPatch {
   const raw = agentPatchSchema.parse(parsed);
   const patch = { ...raw };
   if (patch.livePreview) {
-    const columns = (patch.livePreview.columns ?? []).map((column, index) => {
+    const columns = patch.livePreview.columns?.map((column, index) => {
       if (typeof column === 'string') return column.replace(/[^a-zA-Z0-9]+(.)?/g, (_, next: string | undefined) => next ? next.toUpperCase() : '').replace(/^[A-Z]/, (letter) => letter.toLowerCase()) || `field${index + 1}`;
       if (column && typeof column === 'object' && 'key' in column) return String(column.key);
       return `field${index + 1}`;
     });
-    patch.livePreview = { ...patch.livePreview, columns, sampleRows: normalizeRowKeys(patch.livePreview.sampleRows ?? [], columns) };
+    patch.livePreview = {
+      ...patch.livePreview,
+      columns,
+      sampleRows: patch.livePreview.sampleRows && columns ? normalizeRowKeys(patch.livePreview.sampleRows, columns) : patch.livePreview.sampleRows
+    };
   }
   if (patch.pitchSlides) patch.pitchSlides = patch.pitchSlides.slice(0, 10).map((slide, index) => ({ ...slide, slideNumber: index + 1 }));
   if (patch.demoScript) patch.demoScript = patch.demoScript.slice(0, 4).map((segment, index) => ({ ...segment, timeRange: normalizeTimeRange(segment.timeRange, index) }));
@@ -115,7 +122,7 @@ export function mergeAgentPatch(output: import('@/types/hackstack').HackStackOut
     if (preview.primaryAction) next.previewApp.quickActionLabel = preview.primaryAction;
     if (preview.tableTitle) next.previewApp.primaryEntityName = preview.tableTitle;
     if (preview.columns?.length) next.previewApp.columns = preview.columns as string[];
-    if (preview.sampleRows?.length) next.previewApp.sampleRows = preview.sampleRows as Record<string, string>[];
+    if (preview.sampleRows?.length) next.previewApp.sampleRows = normalizeRowKeys(preview.sampleRows, next.previewApp.columns);
     if (preview.kpis?.length) next.previewApp.metrics = preview.kpis.slice(0, 3).map((kpi, index) => ({
       label: String(kpi.label ?? `KPI ${index + 1}`),
       value: String(kpi.value ?? ''),

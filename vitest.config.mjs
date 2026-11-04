@@ -1,10 +1,11 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
-/** Run with `npm test` (npx vitest@2.1.9, not a lockfile dependency yet). */
+/** Run with `npm test` using the lockfile-managed test runner. */
 export default {
-  resolve: { alias: { '@': path.join(root, 'src') } },
-  test: { environment: 'node', include: ['src/**/*.test.ts'] }
+  esbuild: { jsx: "automatic" },
+  resolve: { alias: { "@": path.join(root, "src") } },
+  test: { environment: "node", include: ["src/**/*.test.ts"] },
 };

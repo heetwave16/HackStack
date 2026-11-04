@@ -6,6 +6,9 @@ import { EntityField, StudioResult, Tone, numericValue, toneForValue } from '@/l
 
 interface PreviewTabProps {
   result: StudioResult;
+  initialRowCount: number;
+  onChange: (preview: Pick<StudioResult, 'rows' | 'metrics'>) => void;
+  onReset: () => void;
 }
 
 type Metric = StudioResult['metrics'][number];
@@ -36,10 +39,9 @@ const TONE_CLASS: Record<Tone, string> = {
 
 const isNumeric = (f: EntityField) => f.type === 'number' || f.type === 'currency';
 
-export default function PreviewTab({ result }: PreviewTabProps) {
-  const [rows, setRows] = useState<Record<string, string>[]>(result.rows);
-  const [metrics, setMetrics] = useState<Metric[]>(result.metrics);
-  const [addedCount, setAddedCount] = useState(0);
+export default function PreviewTab({ result, initialRowCount, onChange, onReset }: PreviewTabProps) {
+  const { rows, metrics } = result;
+  const addedCount = Math.max(0, rows.length - initialRowCount);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<Record<string, string>>({});
@@ -47,13 +49,11 @@ export default function PreviewTab({ result }: PreviewTabProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    setRows(result.rows);
-    setMetrics(result.metrics);
-    setAddedCount(0);
     setSearchQuery('');
     setFormData({});
     setSort(null);
-  }, [result.meta.id, result.rows, result.metrics]);
+    setIsModalOpen(false);
+  }, [result.meta.id]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -74,9 +74,7 @@ export default function PreviewTab({ result }: PreviewTabProps) {
   const handleCloseModal = () => setIsModalOpen(false);
 
   const handleResetData = () => {
-    setRows(result.rows);
-    setMetrics(result.metrics);
-    setAddedCount(0);
+    onReset();
     setSearchQuery('');
     setSort(null);
   };
@@ -95,28 +93,27 @@ export default function PreviewTab({ result }: PreviewTabProps) {
     });
 
     const nextAddedCount = addedCount + 1;
-    setRows((prev) => [completedRow, ...prev]);
-    setAddedCount(nextAddedCount);
-    setMetrics((prev) => prev.map((metric, idx) => (idx === 0 ? bumpLeadingNumber(metric, nextAddedCount) : metric)));
+    onChange({
+      rows: [completedRow, ...rows],
+      metrics: metrics.map((metric, idx) => (idx === 0 ? bumpLeadingNumber(metric, nextAddedCount) : metric))
+    });
     handleCloseModal();
   };
 
   const handleStatusTransition = (targetRow: Record<string, string>, field: EntityField) => {
     const options = statusOptions(field, rows);
-    setRows((previous) =>
-      previous.map((row) => {
+    onChange({
+      rows: rows.map((row) => {
         if (row !== targetRow) return row;
         const currentIndex = options.findIndex((option) => option.toLowerCase() === row[field.key]?.toLowerCase());
         return { ...row, [field.key]: options[(currentIndex + 1) % options.length] };
-      })
-    );
-    setMetrics((previous) =>
-      previous.map((metric, index) =>
+      }),
+      metrics: metrics.map((metric, index) =>
         index === 0
           ? { ...metric, delta: `${rows.length} records · status updated` }
           : metric
       )
-    );
+    });
   };
 
   const filteredRows = useMemo(() => {
@@ -279,7 +276,7 @@ export default function PreviewTab({ result }: PreviewTabProps) {
           <span>
             Showing {filteredRows.length} of {rows.length} rows
           </span>
-          <span>In-memory state</span>
+          <span>Workspace state</span>
         </div>
       </section>
 

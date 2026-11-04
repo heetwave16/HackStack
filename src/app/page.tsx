@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { Code2, Monitor, Presentation, Video } from 'lucide-react';
 import { FALLBACK_HACKSTACK_RESULT, HackStackOutput, ModelConfig } from '@/types/hackstack';
 import { BUILT_IN_PRESETS, HackStackPreset } from '@/components/presets';
@@ -25,7 +25,8 @@ import type { User } from '@supabase/supabase-js';
 import ProjectPanel from '@/components/studio/ProjectPanel';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import AgentWorkbench from '@/components/studio/AgentWorkbench';
-import { AGENTS, mergeAgentPatch, type AgentId, type AgentPatch } from '@/lib/agents';
+import { AGENTS, type AgentId, type AgentPatch } from '@/lib/agents';
+import { createWorkspaceState, workspaceReducer, type PreviewEdit } from '@/lib/workspace-state';
 
 const CODE_FILE_COUNT = 5;
 const INITIAL_PRESET = BUILT_IN_PRESETS[0];
@@ -43,7 +44,11 @@ function isHackStackOutput(value: unknown): value is HackStackOutput {
 
 export default function HackStackStudioPage() {
   const [activeTab, setActiveTab] = useState<StudioTab>('preview');
-  const [data, setData] = useState<HackStackOutput>(FALLBACK_HACKSTACK_RESULT);
+  const [workspace, dispatchWorkspace] = useReducer(workspaceReducer, FALLBACK_HACKSTACK_RESULT, createWorkspaceState);
+  const data = workspace.output;
+  const setData = useCallback((output: HackStackOutput) => dispatchWorkspace({ type: 'replace', output }), []);
+  const handlePreviewChange = useCallback((preview: PreviewEdit) => dispatchWorkspace({ type: 'edit-preview', preview }), []);
+  const handlePreviewReset = useCallback(() => dispatchWorkspace({ type: 'reset-preview' }), []);
   const [resultSource, setResultSource] = useState<ResultSource>('preset');
   const [resultModelLabel, setResultModelLabel] = useState<string | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
@@ -100,7 +105,7 @@ export default function HackStackStudioPage() {
     setLatencyMs(null);
     setNotice(null);
     setRunLog([{ id: 'preset', label: `Loaded preset: ${preset.name}`, status: 'done' }]);
-  }, []);
+  }, [setData]);
 
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get('preset');
@@ -203,7 +208,7 @@ export default function HackStackStudioPage() {
       setLatencyMs(Math.round(performance.now() - startedAt));
       setIsGenerating(false);
     }
-  }, [apiKey, baseUrl, features, ideaText, isGenerating, selectedModel, selectedModelOption, stackSelection]);
+  }, [apiKey, baseUrl, features, ideaText, isGenerating, selectedModel, selectedModelOption, setData, stackSelection]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -246,7 +251,7 @@ export default function HackStackStudioPage() {
   );
 
   const handleAgentPatch = useCallback((agent: AgentId, patch: AgentPatch) => {
-    setData((previous) => mergeAgentPatch(previous, patch));
+    dispatchWorkspace({ type: 'agent-patch', patch });
     setResultSource('live');
     setResultModelLabel(selectedModelOption.label);
     setNotice({ tone: 'info', text: `${AGENTS[agent].label} updated the live workspace.` });
@@ -357,7 +362,14 @@ export default function HackStackStudioPage() {
                 <WorkspaceSkeleton />
               ) : (
                 <>
-                  {activeTab === 'preview' && <PreviewTab result={studioResult} />}
+                  {activeTab === 'preview' && (
+                    <PreviewTab
+                      result={studioResult}
+                      initialRowCount={workspace.previewBaseline.sampleRows.length}
+                      onChange={handlePreviewChange}
+                      onReset={handlePreviewReset}
+                    />
+                  )}
                   {activeTab === 'code' && <CodeTab data={data} />}
                   {activeTab === 'pitch' && <PitchTab data={data} />}
                   {activeTab === 'demo' && <DemoTab data={data} />}
