@@ -15,6 +15,16 @@ export const MODEL_OPTIONS: ModelOption[] = [
     provider: "openrouter",
   },
   {
+    id: "gemini-2.5-flash",
+    label: "Gemini 2.5 Flash · Google AI Studio",
+    provider: "gemini",
+  },
+  {
+    id: "gemini-3.5-flash",
+    label: "Gemini 3.5 Flash · Google AI Studio",
+    provider: "gemini",
+  },
+  {
     id: "gpt-4o-mini",
     label: "OpenAI gpt-4o-mini · provider billing",
     provider: "openai-compatible",

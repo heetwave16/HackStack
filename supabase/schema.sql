@@ -128,3 +128,17 @@ $$;
 
 revoke all on function public.accept_my_project_invites() from public;
 grant execute on function public.accept_my_project_invites() to authenticated;
+
+-- Auto-update updated_at on any project row change.
+create or replace function public.set_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists projects_set_updated_at on public.projects;
+create trigger projects_set_updated_at
+  before update on public.projects
+  for each row execute function public.set_updated_at();

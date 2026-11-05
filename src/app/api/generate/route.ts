@@ -17,6 +17,7 @@ import {
   resolveGatewayBaseUrl,
 } from "@/lib/ai-policy";
 import { aiErrorResponse, aiJson } from "@/lib/ai-http";
+import { classifyIdea, isGenerationAllowed } from "@/lib/jev";
 
 export const maxDuration = 60;
 export const runtime = "nodejs";
@@ -115,6 +116,20 @@ export async function POST(request: Request) {
   };
 
   try {
+    // JEV pre-flight: fast safety + complexity classification (non-blocking on failure).
+    const jevResult = await classifyIdea(idea);
+    if (!isGenerationAllowed(jevResult)) {
+      return aiJson(
+        {
+          error:
+            jevResult.safetyNote ??
+            "This idea cannot be generated. Please describe a different hackathon project.",
+          code: "content_blocked",
+        },
+        422,
+      );
+    }
+
     resolveGatewayBaseUrl(config.provider, config.baseUrl);
     const apiKey = requireCallerApiKey(config.apiKey);
     const models = [config.modelId];
