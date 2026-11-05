@@ -259,3 +259,4 @@ export function isGenerationAllowed(
     classification.safety === "allow_warn"
   );
 }
+
