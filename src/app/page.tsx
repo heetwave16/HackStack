@@ -1,38 +1,67 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Code2, Monitor, Presentation, Video } from 'lucide-react';
-import { FALLBACK_HACKSTACK_RESULT, HackStackOutput, ModelConfig } from '@/types/hackstack';
-import { BUILT_IN_PRESETS, HackStackPreset } from '@/components/presets';
-import { synthesizeCustomHackStack } from '@/components/offline-synth';
-import PreviewTab from '@/components/PreviewTab';
-import CodeTab from '@/components/CodeTab';
-import PitchTab from '@/components/PitchTab';
-import DemoTab from '@/components/DemoTab';
-import StudioHeader, { type StatusChip } from '@/components/studio/StudioHeader';
-import BriefRail from '@/components/studio/BriefRail';
-import RunLog from '@/components/studio/RunLog';
-import PipelineStrip from '@/components/studio/PipelineStrip';
-import WorkspaceTabs, { type WorkspaceTab } from '@/components/studio/WorkspaceTabs';
-import WorkspaceSkeleton from '@/components/studio/WorkspaceSkeleton';
-import { DEFAULT_MODEL_ID, MODEL_OPTIONS, type ModelId, type ModelOption } from '@/components/studio/models';
-import { GenerationError, describeFailure, readApiError } from '@/components/studio/describe-failure';
-import { formatDuration } from '@/components/studio/format';
-import type { Notice, PipelineStage, ResultSource, RunStep, StageStatus, StudioTab } from '@/components/studio/types';
-import { toStudioResult } from '@/lib/studio-result';
-import { validateHackStackOutput } from '@/lib/validator';
-import type { User } from '@supabase/supabase-js';
-import ProjectPanel from '@/components/studio/ProjectPanel';
-import { supabaseBrowser } from '@/lib/supabase-browser';
-import AgentWorkbench from '@/components/studio/AgentWorkbench';
-import { AGENTS, mergeAgentPatch, type AgentId, type AgentPatch } from '@/lib/agents';
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { Code2, Monitor, Presentation, Video } from "lucide-react";
+import {
+  FALLBACK_HACKSTACK_RESULT,
+  HackStackOutput,
+  ModelConfig,
+} from "@/types/hackstack";
+import { BUILT_IN_PRESETS, HackStackPreset } from "@/components/presets";
+
+import PreviewTab from "@/components/PreviewTab";
+import CodeTab from "@/components/CodeTab";
+import PitchTab from "@/components/PitchTab";
+import DemoTab from "@/components/DemoTab";
+import StudioHeader, {
+  type StatusChip,
+} from "@/components/studio/StudioHeader";
+import BriefRail from "@/components/studio/BriefRail";
+import RunLog from "@/components/studio/RunLog";
+import PipelineStrip from "@/components/studio/PipelineStrip";
+import WorkspaceTabs, {
+  type WorkspaceTab,
+} from "@/components/studio/WorkspaceTabs";
+import WorkspaceSkeleton from "@/components/studio/WorkspaceSkeleton";
+import {
+  DEFAULT_MODEL_ID,
+  MODEL_OPTIONS,
+  type ModelId,
+  type ModelOption,
+} from "@/components/studio/models";
+import {
+  GenerationError,
+  describeFailure,
+  readApiError,
+} from "@/components/studio/describe-failure";
+import { formatDuration } from "@/components/studio/format";
+import type {
+  Notice,
+  PipelineStage,
+  ResultSource,
+  RunStep,
+  StageStatus,
+  StudioTab,
+} from "@/components/studio/types";
+import { toStudioResult } from "@/lib/studio-result";
+import { validateHackStackOutput } from "@/lib/validator";
+import type { User } from "@supabase/supabase-js";
+import ProjectPanel from "@/components/studio/ProjectPanel";
+import { supabaseBrowser } from "@/lib/supabase-browser";
+import AgentWorkbench from "@/components/studio/AgentWorkbench";
+import { AGENTS, type AgentId, type AgentPatch } from "@/lib/agents";
+import {
+  createWorkspaceState,
+  workspaceReducer,
+  type PreviewEdit,
+} from "@/lib/workspace-state";
 
 const CODE_FILE_COUNT = 5;
 const INITIAL_PRESET = BUILT_IN_PRESETS[0];
 
 function splitFeatures(value: string): string[] {
   return value
-    .split(',')
+    .split(",")
     .map((feature) => feature.trim())
     .filter(Boolean);
 }
@@ -42,9 +71,27 @@ function isHackStackOutput(value: unknown): value is HackStackOutput {
 }
 
 export default function HackStackStudioPage() {
-  const [activeTab, setActiveTab] = useState<StudioTab>('preview');
-  const [data, setData] = useState<HackStackOutput>(FALLBACK_HACKSTACK_RESULT);
-  const [resultSource, setResultSource] = useState<ResultSource>('preset');
+  const [activeTab, setActiveTab] = useState<StudioTab>("preview");
+  const [workspace, dispatchWorkspace] = useReducer(
+    workspaceReducer,
+    FALLBACK_HACKSTACK_RESULT,
+    createWorkspaceState,
+  );
+  const data = workspace.output;
+  const setData = useCallback(
+    (output: HackStackOutput) => dispatchWorkspace({ type: "replace", output }),
+    [],
+  );
+  const handlePreviewChange = useCallback(
+    (preview: PreviewEdit) =>
+      dispatchWorkspace({ type: "edit-preview", preview }),
+    [],
+  );
+  const handlePreviewReset = useCallback(
+    () => dispatchWorkspace({ type: "reset-preview" }),
+    [],
+  );
+  const [resultSource, setResultSource] = useState<ResultSource>("preset");
   const [resultModelLabel, setResultModelLabel] = useState<string | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [runLog, setRunLog] = useState<RunStep[]>([]);
@@ -52,67 +99,93 @@ export default function HackStackStudioPage() {
   const [railOpen, setRailOpen] = useState(true);
 
   const [selectedModel, setSelectedModel] = useState<ModelId>(DEFAULT_MODEL_ID);
-  const [apiKey, setApiKey] = useState('');
-  const [baseUrl, setBaseUrl] = useState('');
+  const [apiKey, setApiKey] = useState("");
+
   const [showKey, setShowKey] = useState(false);
-  const [availableModels, setAvailableModels] = useState<ModelOption[]>(MODEL_OPTIONS);
+  const [availableModels, setAvailableModels] =
+    useState<ModelOption[]>(MODEL_OPTIONS);
 
   const [ideaText, setIdeaText] = useState(INITIAL_PRESET.ideaText);
   const [stackSelection, setStackSelection] = useState(INITIAL_PRESET.stack);
-  const [features, setFeatures] = useState<string[]>(splitFeatures(INITIAL_PRESET.features));
+  const [features, setFeatures] = useState<string[]>(
+    splitFeatures(INITIAL_PRESET.features),
+  );
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
 
-  const activePreset = BUILT_IN_PRESETS.find((preset) => preset.ideaText === ideaText.trim()) ?? null;
-  const selectedModelOption = availableModels.find((option) => option.id === selectedModel) ?? availableModels[0];
+  const activePreset =
+    BUILT_IN_PRESETS.find((preset) => preset.ideaText === ideaText.trim()) ??
+    null;
+  const selectedModelOption =
+    availableModels.find((option) => option.id === selectedModel) ??
+    availableModels[0];
 
   useEffect(() => {
-    if (!apiKey.trim() || selectedModelOption?.provider !== 'openrouter') return;
+    if (!apiKey.trim() || selectedModelOption?.provider !== "openrouter")
+      return;
     const controller = new AbortController();
-    void fetch('/api/ai/models', {
-      headers: { Authorization: `Bearer ${apiKey.trim()}` },
-      signal: controller.signal
+    void fetch("/api/ai/models", {
+      signal: controller.signal,
     })
       .then(async (response) => {
         if (!response.ok) return;
-        const body = await response.json() as { models?: { id: string; name: string; free?: boolean }[] };
+        const body = (await response.json()) as {
+          models?: { id: string; name: string; free?: boolean }[];
+        };
         const discovered = (body.models ?? []).slice(0, 80).map((model) => ({
           id: model.id,
-          label: `${model.name}${model.free ? ' · free' : ''}`,
-          provider: 'openrouter' as const
+          label: `${model.name}${model.free ? " · free" : ""}`,
+          provider: "openrouter" as const,
         }));
-        if (discovered.length > 0) setAvailableModels([...MODEL_OPTIONS.slice(0, 1), ...discovered, ...MODEL_OPTIONS.slice(1)]);
+        if (discovered.length > 0)
+          setAvailableModels([
+            ...MODEL_OPTIONS.slice(0, 1),
+            ...discovered,
+            ...MODEL_OPTIONS.slice(1),
+          ]);
       })
       .catch(() => undefined);
     return () => controller.abort();
   }, [apiKey, selectedModelOption?.provider]);
 
-  const applyPreset = useCallback((preset: HackStackPreset) => {
-    setIdeaText(preset.ideaText);
-    setStackSelection(preset.stack);
-    setFeatures(splitFeatures(preset.features));
-    setData(preset.output);
-    setResultSource('preset');
-    setResultModelLabel(null);
-    setLatencyMs(null);
-    setNotice(null);
-    setRunLog([{ id: 'preset', label: `Loaded preset: ${preset.name}`, status: 'done' }]);
-  }, []);
+  const applyPreset = useCallback(
+    (preset: HackStackPreset) => {
+      setIdeaText(preset.ideaText);
+      setStackSelection(preset.stack);
+      setFeatures(splitFeatures(preset.features));
+      setData(preset.output);
+      setProjectId(null);
+      setResultSource("preset");
+      setResultModelLabel(null);
+      setLatencyMs(null);
+      setNotice(null);
+      setRunLog([
+        {
+          id: "preset",
+          label: `Loaded preset: ${preset.name}`,
+          status: "done",
+        },
+      ]);
+    },
+    [setData],
+  );
 
   useEffect(() => {
-    const requested = new URLSearchParams(window.location.search).get('preset');
-    const preset = BUILT_IN_PRESETS.find((candidate) => candidate.id === requested);
+    const requested = new URLSearchParams(window.location.search).get("preset");
+    const preset = BUILT_IN_PRESETS.find(
+      (candidate) => candidate.id === requested,
+    );
     if (preset) applyPreset(preset);
   }, [applyPreset]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (activePreset) url.searchParams.set('preset', activePreset.id);
-    else url.searchParams.delete('preset');
-    window.history.replaceState(null, '', `${url.pathname}${url.search}`);
+    if (activePreset) url.searchParams.set("preset", activePreset.id);
+    else url.searchParams.delete("preset");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}`);
   }, [activePreset]);
 
   const handleGenerate = useCallback(async () => {
@@ -120,7 +193,18 @@ export default function HackStackStudioPage() {
 
     const idea = ideaText.trim();
     if (!idea) {
-      setNotice({ tone: 'error', text: 'Describe your idea before generating. Two sentences work best.' });
+      setNotice({
+        tone: "error",
+        text: "Describe your idea before generating. Two sentences work best.",
+      });
+      return;
+    }
+
+    if (!apiKey.trim()) {
+      setNotice({
+        tone: "error",
+        text: "Enter your provider API key above to use AI. Your current work is unchanged; examples do not require a key.",
+      });
       return;
     }
 
@@ -128,92 +212,121 @@ export default function HackStackStudioPage() {
       provider: selectedModelOption.provider,
       modelId: selectedModelOption.id,
       apiKey: apiKey.trim(),
-      baseUrl: selectedModel === 'openai-compatible' && baseUrl.trim() ? baseUrl.trim() : undefined,
     };
 
     const startedAt = performance.now();
     setIsGenerating(true);
     setNotice(null);
     setRunLog([
-      { id: 'brief', label: `Brief read: ${features.length} must-have features`, status: 'done' },
-      { id: 'model', label: `Sent to ${selectedModelOption.label}`, status: 'running' },
+      {
+        id: "brief",
+        label: `Brief read: ${features.length} must-have features`,
+        status: "done",
+      },
+      {
+        id: "model",
+        label: `Sent to ${selectedModelOption.label}`,
+        status: "running",
+      },
     ]);
     const patchStep = (id: string, patch: Partial<RunStep>) =>
-      setRunLog((previous) => previous.map((step) => (step.id === id ? { ...step, ...patch } : step)));
+      setRunLog((previous) =>
+        previous.map((step) => (step.id === id ? { ...step, ...patch } : step)),
+      );
 
     try {
       const requestStartedAt = performance.now();
-      const { data: sessionData } = supabaseBrowser ? await supabaseBrowser.auth.getSession() : { data: { session: null } };
-      const response = await fetch('/api/generate', {
-        method: 'POST',
+      const { data: sessionData } = supabaseBrowser
+        ? await supabaseBrowser.auth.getSession()
+        : { data: { session: null } };
+      const response = await fetch("/api/generate", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...(sessionData.session?.access_token
             ? { Authorization: `Bearer ${sessionData.session.access_token}` }
-            : {})
+            : {}),
         },
-        body: JSON.stringify({ idea, stack: stackSelection, features, modelConfig }),
+        body: JSON.stringify({
+          idea,
+          stack: stackSelection,
+          features,
+          modelConfig,
+        }),
       });
       if (!response.ok) {
-        throw new GenerationError(response.status, await readApiError(response));
+        throw new GenerationError(
+          response.status,
+          await readApiError(response),
+        );
       }
       const json: unknown = await response.json();
       const requestMs = performance.now() - requestStartedAt;
-      patchStep('model', { label: `${selectedModelOption.label} replied`, status: 'done', ms: requestMs });
+      patchStep("model", {
+        label: `${selectedModelOption.label} replied`,
+        status: "done",
+        ms: requestMs,
+      });
       if (!isHackStackOutput(json)) {
-        throw new GenerationError(null, 'the response did not match the expected result shape');
+        throw new GenerationError(
+          null,
+          "the response did not match the expected result shape",
+        );
       }
-      setRunLog((previous) => [...previous, { id: 'check', label: 'Result shape checked', status: 'done' }]);
+      if (json.validation.usedFallback) {
+        throw new GenerationError(
+          null,
+          "the service returned demo content instead of a live result",
+        );
+      }
+      setRunLog((previous) => [
+        ...previous,
+        { id: "check", label: "Result shape checked", status: "done" },
+      ]);
       setData(json);
-      const usedFallback = json.validation.usedFallback;
-      setResultSource(usedFallback ? 'offline' : 'live');
-      setResultModelLabel(usedFallback ? null : json.validation.modelUsed ?? selectedModelOption.label);
+      setProjectId(null);
+      setResultSource("live");
+      setResultModelLabel(
+        json.validation.modelUsed ?? selectedModelOption.label,
+      );
+      setLatencyMs(Math.round(performance.now() - startedAt));
       setNotice({
-        tone: usedFallback ? 'warning' : 'info',
-        text: usedFallback
-          ? `Model generation failed: ${json.validation.fallbackReason ?? 'provider request failed'}. Showing the offline fallback.`
-          : `Generated with ${json.validation.modelUsed ?? selectedModelOption.label} in ${formatDuration(requestMs)}.`
+        tone: "info",
+        text: `Generated with ${json.validation.modelUsed ?? selectedModelOption.label} in ${formatDuration(requestMs)}.`,
       });
     } catch (err) {
       const reason = describeFailure(err);
-      patchStep('model', { label: `Live call failed: ${reason}`, status: 'failed', ms: performance.now() - startedAt });
-      const matchedPreset = BUILT_IN_PRESETS.find((preset) => preset.ideaText === idea);
-      setData(
-        matchedPreset
-          ? matchedPreset.output
-          : synthesizeCustomHackStack({ idea, stack: stackSelection, features })
-      );
-      setResultSource(matchedPreset ? 'preset' : 'offline');
-      setResultModelLabel(null);
-      setRunLog((previous) => [
-        ...previous,
-        {
-          id: 'fallback',
-          label: matchedPreset ? `Showing the ${matchedPreset.name} preset output` : 'Built an offline result from your brief',
-          status: 'done',
-        },
-      ]);
+      patchStep("model", {
+        label: `Live call failed: ${reason}`,
+        status: "failed",
+        ms: performance.now() - startedAt,
+      });
       setNotice({
-        tone: 'warning',
-        text: matchedPreset
-          ? `Live generation failed because ${reason}. Showing the bundled ${matchedPreset.name} output instead.`
-          : `Live generation failed because ${reason}. Showing an offline build of your idea. No model answered this run.`,
+        tone: "error",
+        text: `AI generation failed: ${reason}. Your current work has been kept. You can retry or explicitly choose an example.`,
       });
     } finally {
-      setLatencyMs(Math.round(performance.now() - startedAt));
       setIsGenerating(false);
     }
-  }, [apiKey, baseUrl, features, ideaText, isGenerating, selectedModel, selectedModelOption, stackSelection]);
+  }, [
+    apiKey,
+    features,
+    ideaText,
+    isGenerating,
+    selectedModelOption,
+    setData,
+    stackSelection,
+  ]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault();
         void handleGenerate();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleGenerate]);
 
   const handleCopyLink = useCallback(async () => {
@@ -222,59 +335,105 @@ export default function HackStackStudioPage() {
       setLinkCopied(true);
       window.setTimeout(() => setLinkCopied(false), 2000);
     } catch {
-      setNotice({ tone: 'error', text: 'Could not copy the link. Copy it from the address bar instead.' });
+      setNotice({
+        tone: "error",
+        text: "Could not copy the link. Copy it from the address bar instead.",
+      });
     }
   }, []);
 
   const statusChip: StatusChip = isGenerating
-    ? { tone: 'running', text: `Generating with ${selectedModelOption.label}` }
-    : resultSource === 'live'
-      ? { tone: 'live', text: `Live · ${resultModelLabel ?? selectedModelOption.label} · ${formatDuration(latencyMs ?? 0)}` }
-      : resultSource === 'offline'
-        ? { tone: 'offline', text: 'Offline build · no model answered' }
-        : { tone: 'preset', text: 'Preset sample · no model call' };
+    ? { tone: "running", text: `Generating with ${selectedModelOption.label}` }
+    : resultSource === "live"
+      ? {
+          tone: "live",
+          text: `Live · ${resultModelLabel ?? selectedModelOption.label} · ${formatDuration(latencyMs ?? 0)}`,
+        }
+      : resultSource === "offline"
+        ? { tone: "offline", text: "Offline build · no model answered" }
+        : { tone: "preset", text: "Preset sample · no model call" };
 
   const studioResult = useMemo(
     () =>
       toStudioResult(data, {
-        id: activePreset?.id ?? 'custom',
-        source: resultSource === 'live' ? 'live' : resultSource === 'offline' ? 'offline' : 'cached',
+        id: activePreset?.id ?? "custom",
+        source:
+          resultSource === "live"
+            ? "live"
+            : resultSource === "offline"
+              ? "offline"
+              : "cached",
         latencyMs,
         entity: activePreset?.entity,
       }),
-    [data, activePreset, resultSource, latencyMs]
+    [data, activePreset, resultSource, latencyMs],
   );
 
-  const handleAgentPatch = useCallback((agent: AgentId, patch: AgentPatch) => {
-    setData((previous) => mergeAgentPatch(previous, patch));
-    setResultSource('live');
-    setResultModelLabel(selectedModelOption.label);
-    setNotice({ tone: 'info', text: `${AGENTS[agent].label} updated the live workspace.` });
-  }, [selectedModelOption.label]);
+  const handleAgentPatch = useCallback(
+    (agent: AgentId, patch: AgentPatch) => {
+      dispatchWorkspace({ type: "agent-patch", patch });
+      setResultSource("live");
+      setResultModelLabel(selectedModelOption.label);
+      setNotice({
+        tone: "info",
+        text: `${AGENTS[agent].label} updated the live workspace.`,
+      });
+    },
+    [selectedModelOption.label],
+  );
 
   const hasRun = runLog.length > 0;
-  const downstreamStatus: StageStatus = isGenerating ? 'running' : 'done';
+  const downstreamStatus: StageStatus = isGenerating ? "running" : "done";
   const modelStatus: StageStatus = isGenerating
-    ? 'running'
-    : resultSource === 'live'
-      ? 'done'
-      : resultSource === 'offline'
-        ? 'failed'
-        : 'skipped';
+    ? "running"
+    : resultSource === "live"
+      ? "done"
+      : resultSource === "offline"
+        ? "failed"
+        : "skipped";
   const stages: PipelineStage[] = [
-    { id: 'brief', label: 'Brief', status: hasRun || isGenerating ? 'done' : 'idle' },
-    { id: 'model', label: 'Model', status: modelStatus, ms: modelStatus === 'done' ? latencyMs ?? undefined : undefined },
-    { id: 'schema', label: 'Schema & API', status: downstreamStatus, tab: 'code' },
-    { id: 'preview', label: 'Preview', status: downstreamStatus, tab: 'preview' },
-    { id: 'deck', label: 'Deck', status: downstreamStatus, tab: 'pitch' },
-    { id: 'demo', label: 'Demo', status: downstreamStatus, tab: 'demo' },
+    {
+      id: "brief",
+      label: "Brief",
+      status: hasRun || isGenerating ? "done" : "idle",
+    },
+    {
+      id: "model",
+      label: "Model",
+      status: modelStatus,
+      ms: modelStatus === "done" ? (latencyMs ?? undefined) : undefined,
+    },
+    {
+      id: "schema",
+      label: "Schema & API",
+      status: downstreamStatus,
+      tab: "code",
+    },
+    {
+      id: "preview",
+      label: "Preview",
+      status: downstreamStatus,
+      tab: "preview",
+    },
+    { id: "deck", label: "Deck", status: downstreamStatus, tab: "pitch" },
+    { id: "demo", label: "Demo", status: downstreamStatus, tab: "demo" },
   ];
 
   const workspaceTabs: WorkspaceTab[] = [
-    { id: 'preview', label: 'Preview', icon: Monitor },
-    { id: 'code', label: 'Code', icon: Code2, badge: `${CODE_FILE_COUNT} files` },
-    { id: 'pitch', label: 'Deck', icon: Presentation, badge: `${data.pitchDeck.length}` },
-    { id: 'demo', label: 'Demo', icon: Video, badge: '60 s' },
+    { id: "preview", label: "Preview", icon: Monitor },
+    {
+      id: "code",
+      label: "Code",
+      icon: Code2,
+      badge: `${CODE_FILE_COUNT} files`,
+    },
+    {
+      id: "pitch",
+      label: "Deck",
+      icon: Presentation,
+      badge: `${data.pitchDeck.length}`,
+    },
+    { id: "demo", label: "Demo", icon: Video, badge: "60 s" },
   ];
 
   return (
@@ -283,11 +442,14 @@ export default function HackStackStudioPage() {
         railOpen={railOpen}
         onToggleRail={() => setRailOpen((open) => !open)}
         modelId={selectedModel}
-        onModelChange={setSelectedModel}
+        onModelChange={(id) => {
+          const nextProvider = availableModels.find(
+            (model) => model.id === id,
+          )?.provider;
+          if (nextProvider !== selectedModelOption.provider) setApiKey("");
+          setSelectedModel(id);
+        }}
         modelOptions={availableModels}
-        isCustomModel={selectedModel === 'openai-compatible'}
-        baseUrl={baseUrl}
-        onBaseUrlChange={setBaseUrl}
         apiKey={apiKey}
         onApiKeyChange={setApiKey}
         showKey={showKey}
@@ -331,36 +493,58 @@ export default function HackStackStudioPage() {
                 setStackSelection(loadedInput.stack);
                 setFeatures(loadedInput.features);
                 setData(output);
-                setResultSource('live');
+                setResultSource("live");
               }}
-              onNotice={(text) => setNotice({ tone: 'info', text })}
+              onNotice={(text) => setNotice({ tone: "info", text })}
             />
             <AgentWorkbench
               idea={ideaText}
               model={selectedModelOption}
               apiKey={apiKey}
-              baseUrl={selectedModel === 'openai-compatible' && baseUrl.trim() ? baseUrl.trim() : undefined}
-              onNotice={(text) => setNotice({ tone: 'info', text })}
+
+              onNotice={(text) => setNotice({ tone: "info", text })}
               onPatch={handleAgentPatch}
             />
           </aside>
         )}
 
         <main className="flex min-w-0 flex-1 flex-col">
-          <PipelineStrip stages={stages} activeTab={activeTab} onSelect={setActiveTab} />
+          <PipelineStrip
+            stages={stages}
+            activeTab={activeTab}
+            onSelect={setActiveTab}
+          />
 
           <div className="w-full max-w-[1440px] px-4 py-6 lg:px-10 lg:py-8">
-            <WorkspaceTabs tabs={workspaceTabs} activeTab={activeTab} onChange={setActiveTab} />
+            <WorkspaceTabs
+              tabs={workspaceTabs}
+              activeTab={activeTab}
+              onChange={setActiveTab}
+            />
 
-            <div id={`panel-${activeTab}`} role="tabpanel" aria-labelledby={`tab-${activeTab}`} className="pt-7">
+            <div
+              id={`panel-${activeTab}`}
+              role="tabpanel"
+              aria-labelledby={`tab-${activeTab}`}
+              className="pt-7"
+            >
               {isGenerating ? (
                 <WorkspaceSkeleton />
               ) : (
                 <>
-                  {activeTab === 'preview' && <PreviewTab result={studioResult} />}
-                  {activeTab === 'code' && <CodeTab data={data} />}
-                  {activeTab === 'pitch' && <PitchTab data={data} />}
-                  {activeTab === 'demo' && <DemoTab data={data} />}
+                  {activeTab === "preview" && (
+                    <PreviewTab
+                      result={studioResult}
+                      initialRowCount={
+                        workspace.previewBaseline.sampleRows.length
+                      }
+                      onChange={handlePreviewChange}
+                      onReset={handlePreviewReset}
+                    />
+                  )}
+                  {activeTab === "code" && <CodeTab data={data} />}
+                  {activeTab === "pitch" && <PitchTab data={data} />}
+                  {activeTab === "demo" && <DemoTab data={data} />}
                 </>
               )}
             </div>

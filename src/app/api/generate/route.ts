@@ -1,139 +1,198 @@
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
-import { buildHackStackUserPrompt } from '@/lib/prompts';
-import { normalizeAndRepairStudioOutput, passesGeneratedCodeChecks, validateHackStackOutput } from '@/lib/validator';
-import { FALLBACK_HACKSTACK_RESULT, type HackStackInput, type HackStackOutput } from '@/types/hackstack';
-import { getUserIdFromAccessToken, persistGenerationRun } from '@/lib/supabase';
-import { GatewayError, generateWithGateway } from '@/lib/ai-gateway';
+import { z } from "zod";
+import {
+  buildHackStackUserPrompt,
+  HACKSTACK_SYSTEM_PROMPT,
+} from "@/lib/prompts";
+import {
+  normalizeAndRepairStudioOutput,
+  passesGeneratedCodeChecks,
+  validateHackStackOutput,
+} from "@/lib/validator";
+import { type HackStackInput, type HackStackOutput } from "@/types/hackstack";
+import { getUserIdFromAccessToken, persistGenerationRun } from "@/lib/supabase";
+import { GatewayError, generateWithGateway } from "@/lib/ai-gateway";
+import {
+  gatewayProviderSchema,
+  requireCallerApiKey,
+  resolveGatewayBaseUrl,
+} from "@/lib/ai-policy";
+import { aiErrorResponse, aiJson } from "@/lib/ai-http";
+import { classifyIdea, isGenerationAllowed } from "@/lib/jev";
 
 export const maxDuration = 60;
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const requestSchema = z.object({
   idea: z.string().trim().min(1).max(2000),
-  stack: z.string().trim().max(200).optional().default('Next.js + Node + Postgres'),
-  features: z.array(z.string().trim().max(200)).optional().default([]),
-  modelConfig: z.object({
-    provider: z.enum(['openrouter', 'gemini', 'openai-compatible']),
-    modelId: z.string().trim().min(1).max(160),
-    apiKey: z.string().max(500).default(''),
-    baseUrl: z.string().trim().url().optional()
-  }).optional()
+  stack: z
+    .string()
+    .trim()
+    .max(200)
+    .optional()
+    .default("Next.js + Node + Postgres"),
+  features: z.array(z.string().trim().max(200)).max(100).optional().default([]),
+  modelConfig: z
+    .object({
+      provider: gatewayProviderSchema,
+      modelId: z.string().trim().min(1).max(160),
+      apiKey: z.string().max(500).default(""),
+      baseUrl: z.string().trim().url().optional(),
+    })
+    .optional(),
 });
 
-type ModelConfig = NonNullable<z.infer<typeof requestSchema>['modelConfig']>;
-const FREE_MODEL_FALLBACK = 'meta-llama/llama-3.3-70b-instruct:free';
-
-function resolveApiKey(config: ModelConfig): string | null {
-  if (config.apiKey.trim()) return config.apiKey.trim();
-  if (config.provider === 'openrouter') return process.env.OPENROUTER_API_KEY?.trim() || null;
-  if (config.provider === 'gemini') return process.env.GEMINI_API_KEY?.trim() || null;
-  if (!config.baseUrl) return process.env.OPENAI_API_KEY?.trim() || null;
-  return null;
-}
-
-function assertSafeEndpoint(baseUrl?: string): void {
-  if (!baseUrl) return;
-  const parsed = new URL(baseUrl);
-  const hostname = parsed.hostname.toLowerCase();
-  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.internal')) {
-    throw new GatewayError('Custom gateways must use a public HTTPS URL without embedded credentials', 'unsafe_endpoint');
-  }
-}
+type ModelConfig = NonNullable<z.infer<typeof requestSchema>["modelConfig"]>;
+const FREE_MODEL_FALLBACK = "meta-llama/llama-3.3-70b-instruct:free";
 
 function supportsFreeModelFallback(config: ModelConfig): boolean {
-  return config.provider === 'openrouter' &&
-    (config.modelId === 'openrouter/free' || config.modelId.includes(':free')) &&
-    config.modelId !== FREE_MODEL_FALLBACK;
+  return (
+    config.provider === "openrouter" &&
+    (config.modelId === "openrouter/free" ||
+      config.modelId.includes(":free")) &&
+    config.modelId !== FREE_MODEL_FALLBACK
+  );
 }
 
-function shouldRetryWithFreeModel(error: unknown, config: ModelConfig): boolean {
-  if (!supportsFreeModelFallback(config)) return false;
-  if (error instanceof GatewayError) return error.code === 'invalid_response' || error.status === 408 || error.status === 429 || (error.status !== undefined && error.status >= 500);
-  return error instanceof Error;
+function shouldRetryWithFreeModel(
+  error: unknown,
+  config: ModelConfig,
+): boolean {
+  return (
+    supportsFreeModelFallback(config) &&
+    error instanceof GatewayError &&
+    (error.code === "invalid_response" ||
+      error.code === "timeout" ||
+      error.status === 408 ||
+      error.status === 429 ||
+      (error.status !== undefined && error.status >= 500))
+  );
 }
 
-function buildFallbackResponse(reason: string): HackStackOutput {
-  return {
-    ...FALLBACK_HACKSTACK_RESULT,
-    validation: {
-      ...FALLBACK_HACKSTACK_RESULT.validation,
-      usedFallback: true,
-      modelUsed: 'offline',
-      fallbackReason: reason.slice(0, 240)
+async function respondWithRun(
+  output: HackStackOutput,
+  input: HackStackInput,
+  startedAt: number,
+  request: Request,
+) {
+  // History is best-effort and authenticated; never persist request modelConfig or keys.
+  try {
+    const token =
+      request.headers.get("authorization")?.match(/^Bearer ([^\s]+)$/i)?.[1] ??
+      null;
+    const userId = await getUserIdFromAccessToken(token);
+    if (userId) {
+      await persistGenerationRun({
+        input,
+        output,
+        latencyMs: Date.now() - startedAt,
+        source: "live",
+        userId,
+      });
     }
-  };
-}
-
-async function respondWithRun(output: HackStackOutput, input: HackStackInput, startedAt: number, userId: string | null) {
-  await persistGenerationRun({
-    input,
-    output,
-    latencyMs: Date.now() - startedAt,
-    source: output.validation.usedFallback ? 'fallback' : 'live',
-    userId
-  });
-  return NextResponse.json(output);
+  } catch {
+    console.warn("Generation history could not be saved.");
+  }
+  return aiJson(output);
 }
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
-  const parsedBody = requestSchema.safeParse(await request.json().catch(() => null));
+  const parsedBody = requestSchema.safeParse(
+    await request.json().catch(() => null),
+  );
   if (!parsedBody.success) {
-    return NextResponse.json({ error: 'Invalid HackStack input', details: parsedBody.error.flatten() }, { status: 400 });
+    return aiJson(
+      { error: "Invalid HackStack input", code: "invalid_request" },
+      400,
+    );
   }
-
-  const input: HackStackInput = parsedBody.data;
-  const authorization = request.headers.get('authorization');
-  const userId = await getUserIdFromAccessToken(authorization?.startsWith('Bearer ') ? authorization.slice(7) : null);
+  const { idea, stack, features } = parsedBody.data;
+  const input: HackStackInput = { idea, stack, features };
   const config: ModelConfig = parsedBody.data.modelConfig ?? {
-    provider: 'openrouter',
-    modelId: 'openrouter/free',
-    apiKey: ''
+    provider: "openrouter",
+    modelId: "openrouter/free",
+    apiKey: "",
   };
-  const apiKey = resolveApiKey(config);
-  if (!apiKey) return respondWithRun(buildFallbackResponse('No API key configured. Add an OpenRouter key or set OPENROUTER_API_KEY.'), input, startedAt, userId);
 
   try {
-    if (config.provider === 'openai-compatible') assertSafeEndpoint(config.baseUrl);
-    const models = [config.modelId];
-    if (supportsFreeModelFallback(config)) {
-      models.push(FREE_MODEL_FALLBACK);
+    // JEV pre-flight: fast safety + complexity classification (non-blocking on failure).
+    const jevResult = await classifyIdea(idea);
+    if (!isGenerationAllowed(jevResult)) {
+      return aiJson(
+        {
+          error:
+            jevResult.safetyNote ??
+            "This idea cannot be generated. Please describe a different hackathon project.",
+          code: "content_blocked",
+        },
+        422,
+      );
     }
-    let lastFailure = 'invalid model output';
-    for (const model of models) {
+
+    resolveGatewayBaseUrl(config.provider, config.baseUrl);
+    const apiKey = requireCallerApiKey(config.apiKey);
+    const models = [config.modelId];
+    if (supportsFreeModelFallback(config)) models.push(FREE_MODEL_FALLBACK);
+
+    for (const [index, model] of models.entries()) {
       try {
+        const timeoutMs = Math.min(30_000, 50_000 - (Date.now() - startedAt));
+        if (timeoutMs <= 0)
+          throw new GatewayError("Generation request timed out", "timeout");
         const text = await generateWithGateway({
           provider: config.provider,
           model,
           apiKey,
-          baseUrl: config.provider === 'openai-compatible' ? config.baseUrl : undefined,
-          system: 'You are HackStack. Return only the complete JSON object matching the requested schema. Never include markdown fences.',
+          baseUrl: config.baseUrl,
+          system: HACKSTACK_SYSTEM_PROMPT,
           user: `${buildHackStackUserPrompt(input)}\n\nReturn the complete HackStack JSON output and follow every schema constraint.`,
-          timeoutMs: 45_000
+          timeoutMs,
         });
-        const parsedJson = normalizeAndRepairStudioOutput(text);
+        let parsedJson: unknown;
+        try {
+          parsedJson = normalizeAndRepairStudioOutput(text);
+        } catch {
+          throw new GatewayError(
+            "Model output failed validation",
+            "invalid_response",
+          );
+        }
         const candidate = {
           ...(parsedJson as object),
-          validation: { schemaValid: true, compileCheckPassed: false, usedFallback: false, modelUsed: model }
+          validation: {
+            schemaValid: true,
+            compileCheckPassed: false,
+            usedFallback: false,
+            modelUsed: model,
+          },
         };
         const checked = validateHackStackOutput({
           ...candidate,
-          validation: { ...candidate.validation, compileCheckPassed: passesGeneratedCodeChecks(candidate) }
+          validation: {
+            ...candidate.validation,
+            compileCheckPassed: passesGeneratedCodeChecks(candidate),
+          },
         });
-        if (checked.success) return respondWithRun(checked.data, input, startedAt, userId);
-        lastFailure = checked.errors[0] ?? 'invalid shape';
-        if (model === models[models.length - 1]) break;
+        if (!checked.success)
+          throw new GatewayError(
+            "Model output failed validation",
+            "invalid_response",
+          );
+        return respondWithRun(checked.data, input, startedAt, request);
       } catch (error) {
-        lastFailure = error instanceof GatewayError || error instanceof Error ? error.message : 'AI gateway request failed';
-        if (model === models[models.length - 1] || !shouldRetryWithFreeModel(error, config)) break;
+        if (
+          index === models.length - 1 ||
+          !shouldRetryWithFreeModel(error, config)
+        )
+          throw error;
       }
     }
-    return respondWithRun(buildFallbackResponse(`Model output failed validation: ${lastFailure}`), input, startedAt, userId);
+    throw new GatewayError(
+      "Model output failed validation",
+      "invalid_response",
+    );
   } catch (error) {
-    const reason = error instanceof GatewayError || error instanceof Error ? error.message : 'AI gateway request failed';
-    console.warn('AI gateway failed:', reason);
-    return respondWithRun(buildFallbackResponse(reason), input, startedAt, userId);
+    return aiErrorResponse(error);
   }
 }

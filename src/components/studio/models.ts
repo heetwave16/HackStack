@@ -1,4 +1,4 @@
-import type { AIProvider } from '@/types/hackstack';
+import type { AIProvider } from "@/types/hackstack";
 
 export type ModelId = string;
 
@@ -9,14 +9,32 @@ export interface ModelOption {
 }
 
 export const MODEL_OPTIONS: ModelOption[] = [
-  { id: 'openrouter/free', label: 'OpenRouter free router', provider: 'openrouter' },
-  { id: 'openai-compatible', label: 'Custom OpenAI-compatible gateway', provider: 'openai-compatible' }
+  {
+    id: "openrouter/free",
+    label: "OpenRouter free router",
+    provider: "openrouter",
+  },
+  {
+    id: "gemini-2.5-flash",
+    label: "Gemini 2.5 Flash · Google AI Studio",
+    provider: "gemini",
+  },
+  {
+    id: "gemini-3.5-flash",
+    label: "Gemini 3.5 Flash · Google AI Studio",
+    provider: "gemini",
+  },
+  {
+    id: "gpt-4o-mini",
+    label: "OpenAI gpt-4o-mini · provider billing",
+    provider: "openai-compatible",
+  },
 ];
 
-export const DEFAULT_MODEL_ID: ModelId = 'openrouter/free';
+export const DEFAULT_MODEL_ID: ModelId = "openrouter/free";
 
 export const STACK_OPTIONS = [
-  'Next.js + Node + Postgres',
-  'Next.js + Supabase + Tailwind',
-  'FastAPI + React + SQLite'
+  "Next.js + Node + Postgres",
+  "Next.js + Supabase + Tailwind",
+  "FastAPI + React + SQLite",
 ];

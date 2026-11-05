@@ -1,20 +1,27 @@
-import { Copy, Eye, EyeOff, PanelLeftClose, PanelLeftOpen, Sparkles } from 'lucide-react';
-import { type ModelId, type ModelOption } from './models';
-import { CONTROL } from './ui';
-import AuthPanel from './AuthPanel';
-import type { User } from '@supabase/supabase-js';
+import {
+  Copy,
+  Eye,
+  EyeOff,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Sparkles,
+} from "lucide-react";
+import { type ModelId, type ModelOption } from "./models";
+import { CONTROL } from "./ui";
+import AuthPanel from "./AuthPanel";
+import type { User } from "@supabase/supabase-js";
 
-export type StatusTone = 'running' | 'live' | 'offline' | 'preset';
+export type StatusTone = "running" | "live" | "offline" | "preset";
 export interface StatusChip {
   tone: StatusTone;
   text: string;
 }
 
 const TONE_CLASS: Record<StatusTone, string> = {
-  running: 'border-info/40 text-info',
-  live: 'border-success/40 text-success',
-  offline: 'border-warning/40 text-warning',
-  preset: 'border-line text-fg-2',
+  running: "border-info/40 text-info",
+  live: "border-success/40 text-success",
+  offline: "border-warning/40 text-warning",
+  preset: "border-line text-fg-2",
 };
 
 interface StudioHeaderProps {
@@ -23,9 +30,7 @@ interface StudioHeaderProps {
   modelId: ModelId;
   onModelChange: (id: ModelId) => void;
   modelOptions: ModelOption[];
-  isCustomModel: boolean;
-  baseUrl: string;
-  onBaseUrlChange: (value: string) => void;
+
   apiKey: string;
   onApiKeyChange: (value: string) => void;
   showKey: boolean;
@@ -42,9 +47,7 @@ export default function StudioHeader({
   modelId,
   onModelChange,
   modelOptions,
-  isCustomModel,
-  baseUrl,
-  onBaseUrlChange,
+
   apiKey,
   onApiKeyChange,
   showKey,
@@ -62,18 +65,26 @@ export default function StudioHeader({
           onClick={onToggleRail}
           aria-expanded={railOpen}
           aria-controls="studio-brief"
-          aria-label={railOpen ? 'Hide brief panel' : 'Show brief panel'}
+          aria-label={railOpen ? "Hide brief panel" : "Show brief panel"}
           className="grid h-8 w-8 shrink-0 place-items-center rounded border border-line text-fg-3 transition-colors hover:border-line-strong hover:text-fg"
         >
-          {railOpen ? <PanelLeftClose className="h-4 w-4" aria-hidden="true" /> : <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />}
+          {railOpen ? (
+            <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
+          )}
         </button>
         <div className="flex min-w-0 items-center gap-3 leading-tight">
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-accent/30 bg-accent/10 text-accent">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold tracking-tight text-fg">HackStack <span className="font-normal text-fg-3">/ Studio</span></div>
-            <div className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-fg-3">Build a sharp first version</div>
+            <div className="truncate text-sm font-semibold tracking-tight text-fg">
+              HackStack <span className="font-normal text-fg-3">/ Studio</span>
+            </div>
+            <div className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-fg-3">
+              Build a sharp first version
+            </div>
           </div>
         </div>
       </div>
@@ -92,22 +103,12 @@ export default function StudioHeader({
           ))}
         </select>
 
-        {isCustomModel && (
-          <input
-            type="url"
-            aria-label="Base URL for custom endpoint"
-            placeholder="https://your-endpoint/v1"
-            value={baseUrl}
-            onChange={(event) => onBaseUrlChange(event.target.value)}
-            className={`${CONTROL} w-52`}
-          />
-        )}
-
         <div className="flex items-center gap-1">
           <input
-            type={showKey ? 'text' : 'password'}
-            aria-label="API key (optional, stays in this browser tab)"
-            placeholder="API key (optional)"
+            type={showKey ? "text" : "password"}
+            aria-label="Provider API key (required for AI)"
+            title="Kept in this tab’s memory and sent through HackStack to the selected provider. Not saved with projects. Provider billing may apply."
+            placeholder="API key for AI"
             autoComplete="off"
             value={apiKey}
             onChange={(event) => onApiKeyChange(event.target.value)}
@@ -116,10 +117,14 @@ export default function StudioHeader({
           <button
             type="button"
             onClick={onToggleShowKey}
-            aria-label={showKey ? 'Hide API key' : 'Show API key'}
+            aria-label={showKey ? "Hide API key" : "Show API key"}
             className="grid h-8 w-8 place-items-center rounded border border-line text-fg-3 transition-colors hover:border-line-strong hover:text-fg"
           >
-            {showKey ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+            {showKey ? (
+              <EyeOff className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Eye className="h-4 w-4" aria-hidden="true" />
+            )}
           </button>
           <AuthPanel onUserChange={onUserChange} />
         </div>
@@ -138,7 +143,7 @@ export default function StudioHeader({
           className="inline-flex h-8 items-center gap-2 rounded-md border border-line px-3 text-xs font-medium text-fg-2 transition-colors hover:border-line-strong hover:bg-surface-1 hover:text-fg"
         >
           <Copy className="h-4 w-4" aria-hidden="true" />
-          {linkCopied ? 'Link copied' : 'Share link'}
+          {linkCopied ? "Link copied" : "Share link"}
         </button>
       </div>
     </header>
