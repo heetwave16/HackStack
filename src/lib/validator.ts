@@ -340,18 +340,25 @@ export function normalizeAndRepairStudioOutput(text: string): unknown {
       : undefined;
   if (demoKit) {
     if (Array.isArray(demoKit.scriptSegments)) {
-      const segments = demoKit.scriptSegments
+      const segments: Array<{
+        timeRange: string;
+        visualAction: string;
+        voiceover: string;
+        [key: string]: unknown;
+      }> = demoKit.scriptSegments
         .slice(0, 4)
-        .map((segment, index) => ({
-          ...((segment && typeof segment === "object" ? segment : {}) as Record<
-            string,
-            unknown
-          >),
-          timeRange: normalizeTimeRange(
-            index,
-            (segment as Record<string, unknown> | undefined)?.timeRange,
-          ),
-        }));
+        .map((segment, index) => {
+          const raw = (segment && typeof segment === "object" ? segment : {}) as Record<string, unknown>;
+          return {
+            ...raw,
+            timeRange: normalizeTimeRange(
+              index,
+              raw.timeRange,
+            ),
+            visualAction: String(raw.visualAction || "Walk through key product features and architecture.").slice(0, 200),
+            voiceover: String(raw.voiceover || "Here is the key workflow for this milestone.").slice(0, 300),
+          };
+        });
       const expectedRanges = ["0:00 - 0:15", "0:15 - 0:30", "0:30 - 0:45", "0:45 - 1:00"];
       while (segments.length < 4) {
         const index = segments.length;

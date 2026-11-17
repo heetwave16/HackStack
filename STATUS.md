@@ -20,6 +20,7 @@ Verified pass via Native Swarm (`endpoints`, `site`, `verifier`):
 
 1. **Validator Math Contradiction Resolved (`src/lib/validator.ts`)**:
    - Resolved critical schema failure where responses with 5 or 6 items in `buildNextChecklist` mathematically failed validation because only 4 distinct criteria exist in the enum. Criteria repetition is now permitted when checklist length > 4.
+   - Typed `scriptSegments` repair mapping explicitly in `normalizeAndRepairStudioOutput` to resolve TS2353 excess property error during strict type-check.
    - Added length clamping in `normalizeAndRepairStudioOutput` for `projectName` (80), `tagline` (240), `primaryEntityName` (120), `quickActionLabel` (80), `pitchDeck` bullets (4), with padding for slides (10) and script segments (4).
    - Relaxed regex in `passesGeneratedCodeChecks` to validate `export async function GET` and `POST` independently with word boundaries (`\b`), eliminating rigid file-order requirements.
 
