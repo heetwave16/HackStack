@@ -170,7 +170,7 @@ export default function HackStackStudioPage() {
       { id: "model", label: "Golden sample verified", status: "done" },
       { id: "check", label: "Schema validated", status: "done" },
     ]);
-  }, []);
+  }, [setData]);
 
   const handleGenerate = useCallback(async () => {
     if (isGenerating) return;
