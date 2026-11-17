@@ -163,7 +163,7 @@ export default function HackStackStudioPage() {
     setData(preset.output);
     setProjectId(null);
     setResultSource("preset");
-    setResultModelLabel(preset.output.validation.modelUsed);
+    setResultModelLabel(preset.output.validation.modelUsed ?? null);
     setNotice(null);
     setRunLog([
       { id: "brief", label: `Preset loaded: ${preset.name}`, status: "done" },
