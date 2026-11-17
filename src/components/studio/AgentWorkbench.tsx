@@ -46,8 +46,15 @@ export default function AgentWorkbench({ idea, model, apiKey, baseUrl, onNotice,
           baseUrl
         })
       });
-      const body = await response.json() as { output?: string; patch?: AgentPatch; error?: string };
-      if (!response.ok || !body.output) throw new Error(body.error ?? 'Agent returned no output');
+      let body: { output?: string; patch?: AgentPatch; error?: string } | null = null;
+      try {
+        body = (await response.json()) as { output?: string; patch?: AgentPatch; error?: string };
+      } catch {
+        body = null;
+      }
+      if (!response.ok || !body?.output) {
+        throw new Error(body?.error ?? `Agent call failed (status ${response.status})`);
+      }
       if (!body.patch) throw new Error('Agent returned no workspace patch');
       setStates((previous) => ({ ...previous, [agent]: { status: 'done', output: body.output } }));
       onPatch(agent, body.patch);
@@ -100,7 +107,7 @@ export default function AgentWorkbench({ idea, model, apiKey, baseUrl, onNotice,
       </div>
       {!apiKey.trim() && <p className="mt-4 text-xs text-warning">Add a gateway key above before running agents.</p>}
 
-      <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-3">
         {ORDER.map((agent) => {
           const state = states[agent];
           return (
@@ -116,7 +123,7 @@ export default function AgentWorkbench({ idea, model, apiKey, baseUrl, onNotice,
               </div>
               {state.output && <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap border-t border-line pt-3 font-mono text-[10px] leading-relaxed text-fg-2">{state.output}</pre>}
               {state.error && <p className="mt-3 border-t border-line pt-3 text-xs leading-relaxed text-danger">{state.error}</p>}
-              <button type="button" onClick={() => void retry(agent)} disabled={running || !apiKey.trim()} className="mt-4 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fg-3 hover:text-accent disabled:opacity-40">
+              <button type="button" onClick={() => void retry(agent)} disabled={running || !idea.trim() || !apiKey.trim()} className="mt-4 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fg-3 hover:text-accent disabled:opacity-40">
                 <RotateCcw className="h-3 w-3" /> {state.status === 'done' ? 'Regenerate' : 'Run agent'}
               </button>
             </article>

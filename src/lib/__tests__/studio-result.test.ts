@@ -44,6 +44,23 @@ describe('StudioResult contract', () => {
     expect(text).not.toMatch(/faster than|% off retail/i);
   });
 
+  it('handles empty or whitespace-only keys safely', () => {
+    expect(humanizeKey('')).toBe('');
+    expect(humanizeKey('   ')).toBe('   ');
+  });
+
+  it('deduplicates files by path when additionalFiles contains duplicate paths', () => {
+    const output = structuredClone(BUILT_IN_PRESETS[0].output);
+    output.codebase.additionalFiles = [
+      { path: 'README.md', content: '# Overridden Readme' },
+      { path: 'custom/extra.ts', content: 'export const extra = true;' }
+    ];
+    const r = toStudioResult(output, { id: 'test', source: 'offline', latencyMs: null });
+    const readmeFiles = r.files.filter((f) => f.path === 'README.md');
+    expect(readmeFiles).toHaveLength(1);
+    expect(r.files.some((f) => f.path === 'custom/extra.ts')).toBe(true);
+  });
+
   it('rejects inconsistent generated output contracts', () => {
     const invalid = structuredClone(BUILT_IN_PRESETS[0].output);
     invalid.previewApp.sampleRows[0].unexpected = 'bad';

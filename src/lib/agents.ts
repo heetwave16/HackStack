@@ -86,14 +86,28 @@ function normalizeRowKeys(rows: Array<Record<string, unknown>>, columns: string[
   })));
 }
 
+function parseJsonWithControlCharacterRepair(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    let repaired = '';
+    let inString = false;
+    let escaped = false;
+    for (const character of text) {
+      if (inString && character === '\n') repaired += '\\n';
+      else if (inString && character === '\r') repaired += '\\r';
+      else if (inString && character === '\t') repaired += '\\t';
+      else repaired += character;
+      if (character === '"' && !escaped) inString = !inString;
+      escaped = character === '\\' && !escaped;
+    }
+    return JSON.parse(repaired);
+  }
+}
+
 export function parseAgentPatch(text: string): AgentPatch {
   const cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(extractJsonObject(cleaned));
-  } catch {
-    parsed = JSON.parse(extractJsonObject(cleaned).replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t'));
-  }
+  const parsed = parseJsonWithControlCharacterRepair(extractJsonObject(cleaned));
   const raw = agentPatchSchema.parse(parsed);
   const patch = { ...raw };
   if (patch.livePreview) {

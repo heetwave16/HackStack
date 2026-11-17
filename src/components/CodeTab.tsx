@@ -194,17 +194,24 @@ export default function CodeTab({ data }: CodeTabProps) {
           </section>
         </aside>
 
-        <section className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-surface-0">
-          <div className="flex items-center justify-between gap-3 border-b border-line bg-surface-1 px-4 py-2.5">
+        <section className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-surface-0 shadow-lg shadow-black/20">
+          <div className="flex items-center justify-between gap-3 border-b border-line bg-surface-1/80 px-4 py-2.5 backdrop-blur">
             <div className="flex min-w-0 items-center gap-2 font-mono text-xs">
+              <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                {language.toUpperCase()}
+              </span>
               <span className="truncate text-fg">{filePath}</span>
-              <span className="hidden truncate text-fg-3 md:inline">{activeFile.description}</span>
+              <span className="hidden truncate text-fg-3 md:inline">· {activeFile.description}</span>
             </div>
-            <button
-              type="button"
-              onClick={handleCopyCode}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded border border-line px-2.5 py-1 font-mono text-xs text-fg-2 transition-colors hover:border-line-strong hover:text-fg"
-            >
+            <div className="flex items-center gap-2">
+              <span className="hidden font-mono text-[10px] text-fg-3 sm:inline">
+                {lines.length} lines
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyCode}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded border border-line bg-surface-0 px-2.5 py-1 font-mono text-xs text-fg-2 transition-colors hover:border-line-strong hover:text-fg"
+              >
               {copied ? (
                 <>
                   <Check className="h-3.5 w-3.5 text-success" aria-hidden="true" />
@@ -217,6 +224,7 @@ export default function CodeTab({ data }: CodeTabProps) {
                 </>
               )}
             </button>
+          </div>
           </div>
 
           <div className="flex max-h-[560px] overflow-auto font-mono text-xs leading-6">

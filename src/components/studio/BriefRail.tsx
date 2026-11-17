@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, type KeyboardEvent } from 'react';
-import { AlertTriangle, Check, Info, Loader2, Plus, Sparkles, X } from 'lucide-react';
-import type { HackStackPreset } from '@/components/presets';
+import { AlertTriangle, Info, Loader2, Plus, Sparkles, X } from 'lucide-react';
 import { STACK_OPTIONS } from './models';
 import type { Notice, NoticeTone } from './types';
-import { CONTROL, SECTION_LABEL } from './ui';
+import { CONTROL } from './ui';
 
 const NOTICE_STYLE: Record<NoticeTone, string> = {
   info: 'border-line text-fg-2',
@@ -20,9 +19,6 @@ const NOTICE_ICON: Record<NoticeTone, typeof Info> = {
 };
 
 interface BriefRailProps {
-  presets: HackStackPreset[];
-  activePresetName: string | null;
-  onPresetSelect: (preset: HackStackPreset) => void;
   ideaText: string;
   onIdeaChange: (value: string) => void;
   stack: string;
@@ -35,9 +31,6 @@ interface BriefRailProps {
 }
 
 export default function BriefRail({
-  presets,
-  activePresetName,
-  onPresetSelect,
   ideaText,
   onIdeaChange,
   stack,
@@ -51,10 +44,20 @@ export default function BriefRail({
   const [featureDraft, setFeatureDraft] = useState('');
 
   const addFeature = () => {
-    const next = featureDraft.trim();
-    if (!next) return;
-    if (!features.some((feature) => feature.toLowerCase() === next.toLowerCase())) {
-      onFeaturesChange([...features, next]);
+    const rawFeatures = featureDraft
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (rawFeatures.length === 0) return;
+
+    const updated = [...features];
+    for (const next of rawFeatures) {
+      if (!updated.some((feature) => feature.toLowerCase() === next.toLowerCase())) {
+        updated.push(next);
+      }
+    }
+    if (updated.length !== features.length) {
+      onFeaturesChange(updated);
     }
     setFeatureDraft('');
   };
@@ -137,33 +140,6 @@ export default function BriefRail({
             Add
           </button>
         </div>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="eyebrow">Start from a real shape</span>
-        <ul className="flex flex-col gap-1">
-          {presets.map((preset) => {
-            const isActive = preset.name === activePresetName;
-            return (
-              <li key={preset.id}>
-                <button
-                  type="button"
-                  aria-pressed={isActive}
-                  onClick={() => onPresetSelect(preset)}
-                  className={`flex w-full items-center justify-between gap-3 rounded border px-3 py-2 text-left transition-colors ${
-                    isActive ? 'border-line-strong bg-surface-2' : 'border-line hover:border-line-strong'
-                  }`}
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm text-fg">{preset.name}</span>
-                    <span className="block truncate font-mono text-xs text-fg-3">{preset.badge}</span>
-                  </span>
-                  {isActive && <Check className="h-4 w-4 shrink-0 text-success" aria-hidden="true" />}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
       </div>
 
       <div className="flex flex-col gap-3">

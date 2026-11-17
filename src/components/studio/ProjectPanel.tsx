@@ -71,7 +71,7 @@ export default function ProjectPanel({ user, input, output, projectId, onProject
   const supabase = supabaseBrowser;
   const currentUser = user;
 
-  async function saveProject() {
+  async function saveProject(): Promise<string | null> {
     setBusy(true);
     const payload = {
       owner_id: currentUser.id,
@@ -90,21 +90,24 @@ export default function ProjectPanel({ user, input, output, projectId, onProject
       setProjectsRevision((revision) => revision + 1);
       onProjectSaved(data.id);
       onNotice(projectId ? 'Project updated in Supabase.' : 'Project saved to Supabase.');
+      return data.id as string;
     } catch (error) {
       onNotice(error instanceof Error ? error.message : 'Could not save project.');
+      return null;
     } finally {
       setBusy(false);
     }
   }
 
   async function createShareLink() {
-    if (!projectId) {
-      await saveProject();
-      return;
+    let targetProjectId = projectId;
+    if (!targetProjectId) {
+      targetProjectId = await saveProject();
+      if (!targetProjectId) return;
     }
     const token = crypto.randomUUID().replaceAll('-', '');
     const { error } = await supabase.from('project_share_links').insert({
-      project_id: projectId,
+      project_id: targetProjectId,
       created_by: currentUser.id,
       token
     });

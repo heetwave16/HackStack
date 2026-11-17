@@ -159,7 +159,8 @@ async function callGemini(
   request: GatewayRequest,
   baseUrl: string,
 ): Promise<string> {
-  const url = `${baseUrl}/models/${encodeURIComponent(request.model)}:generateContent`;
+  const modelName = request.model.replace(/^models\//, "");
+  const url = `${baseUrl}/models/${encodeURIComponent(modelName)}:generateContent`;
   const json = await fetchProviderJson(url, {
     method: "POST",
     headers: {

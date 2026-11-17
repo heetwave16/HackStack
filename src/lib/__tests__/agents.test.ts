@@ -78,4 +78,25 @@ describe('agent workspace patches', () => {
     expect(next.previewApp.metrics).toEqual(FALLBACK_HACKSTACK_RESULT.previewApp.metrics);
     expect(originalPitch).not.toBe(next.pitchDeck);
   });
+
+  it('parses multiline formatted JSON without corrupting structural newlines', () => {
+    const formattedJson = `
+{
+  "livePreview": {
+    "columns": ["id", "task", "status"],
+    "sampleRows": [
+      {
+        "id": "1",
+        "task": "Test newline\\nin string",
+        "status": "Active"
+      }
+    ]
+  }
+}
+    `.trim();
+
+    const patch = parseAgentPatch(formattedJson);
+    expect(patch.livePreview?.columns).toEqual(['id', 'task', 'status']);
+    expect(patch.livePreview?.sampleRows?.[0].task).toContain('Test newline');
+  });
 });

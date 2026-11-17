@@ -20,6 +20,7 @@ export default function DemoTab({ data }: DemoTabProps) {
   const [secondsRemaining, setSecondsRemaining] = useState(RECORDING_SECONDS);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+  const [recordedExt, setRecordedExt] = useState<'webm' | 'mp4'>('webm');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -79,8 +80,17 @@ export default function DemoTab({ data }: DemoTabProps) {
       streamRef.current = stream;
       recordedChunksRef.current = [];
 
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
-      const recorder = new MediaRecorder(stream, { mimeType });
+      let mimeType: string | undefined;
+      if (typeof MediaRecorder.isTypeSupported === 'function') {
+        if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+          mimeType = 'video/webm;codecs=vp9';
+        } else if (MediaRecorder.isTypeSupported('video/webm')) {
+          mimeType = 'video/webm';
+        } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+          mimeType = 'video/mp4';
+        }
+      }
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (event) => {
@@ -95,13 +105,16 @@ export default function DemoTab({ data }: DemoTabProps) {
           setRecordingError('The recording was empty. Try again and keep the window open for the full minute.');
           return;
         }
-        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const isMp4 = mimeType?.includes('mp4');
+        const ext = isMp4 ? 'mp4' : 'webm';
+        setRecordedExt(ext);
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/webm' });
         const url = URL.createObjectURL(blob);
         recordedVideoUrlRef.current = url;
         setRecordedVideoUrl(url);
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = `${fileSlug}-60s-demo.webm`;
+        anchor.download = `${fileSlug}-60s-demo.${ext}`;
         document.body.appendChild(anchor);
         anchor.click();
         document.body.removeChild(anchor);
@@ -204,11 +217,11 @@ export default function DemoTab({ data }: DemoTabProps) {
             <div className="flex items-center justify-between gap-3 rounded border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-fg">
               <span className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-                Saved as a .webm file
+                Saved as a .{recordedExt} file
               </span>
               <a
                 href={recordedVideoUrl}
-                download={`${fileSlug}-60s-demo.webm`}
+                download={`${fileSlug}-60s-demo.${recordedExt}`}
                 className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-fg underline underline-offset-4 hover:text-accent"
               >
                 <Download className="h-3.5 w-3.5" aria-hidden="true" />
@@ -306,10 +319,10 @@ export default function DemoTab({ data }: DemoTabProps) {
           {visibleChecklist.length === 0 && (
             <li className="p-5 text-sm text-fg-3">No tasks match this criterion. Choose All to see the full list.</li>
           )}
-          {visibleChecklist.map((item) => {
+          {visibleChecklist.map((item, index) => {
             const isChecked = !!completedTasks[item.priority];
             return (
-              <li key={item.priority}>
+              <li key={`${item.priority}-${index}`}>
                 <label className="flex cursor-pointer flex-col gap-3 p-4 transition-colors hover:bg-surface-2 sm:flex-row sm:items-center sm:justify-between sm:p-5">
                   <span className="flex items-start gap-4">
                     <input

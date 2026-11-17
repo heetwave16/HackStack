@@ -24,6 +24,14 @@ export default async function SharedProjectPage({ params }: { params: Promise<{ 
 
   const { project, canEdit } = shared;
   const result = project.result;
+  const metrics = result?.previewApp?.metrics ?? [];
+  const columns = result?.previewApp?.columns ?? [];
+  const sampleRows = result?.previewApp?.sampleRows ?? [];
+  const primaryEntityName = result?.previewApp?.primaryEntityName ?? 'Records';
+  const buildNextChecklist = result?.demoKit?.buildNextChecklist ?? [];
+  const formattedUpdatedAt = project.updated_at && !Number.isNaN(Date.parse(project.updated_at))
+    ? new Date(project.updated_at).toLocaleDateString()
+    : 'Recently';
 
   return (
     <main className="min-h-screen px-5 py-8 lg:px-10">
@@ -40,12 +48,12 @@ export default async function SharedProjectPage({ params }: { params: Promise<{ 
         <header className="mt-12 max-w-3xl">
           <p className="eyebrow">Project share · {project.stack}</p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight text-fg lg:text-6xl">{project.project_name}</h1>
-          <p className="mt-4 max-w-2xl text-lg leading-relaxed text-fg-2">{result.tagline}</p>
+          <p className="mt-4 max-w-2xl text-lg leading-relaxed text-fg-2">{result?.tagline ?? ''}</p>
           <p className="mt-4 text-sm leading-relaxed text-fg-3">{project.idea}</p>
         </header>
 
         <section className="mt-12 grid gap-4 md:grid-cols-3">
-          {result.previewApp.metrics.map((metric) => (
+          {metrics.map((metric) => (
             <article key={metric.label} className="workbench-panel p-5">
               <p className="eyebrow">{metric.label}</p>
               <p className="mt-3 text-3xl font-semibold text-fg">{metric.value}</p>
@@ -57,17 +65,17 @@ export default async function SharedProjectPage({ params }: { params: Promise<{ 
         <section className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <article className="workbench-panel overflow-hidden">
             <div className="border-b border-line p-5">
-              <p className="eyebrow">Preview · {result.previewApp.primaryEntityName}</p>
+              <p className="eyebrow">Preview · {primaryEntityName}</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-line text-xs text-fg-3">
-                  <tr>{result.previewApp.columns.map((column) => <th key={column} className="px-5 py-3 font-medium">{column}</th>)}</tr>
+                  <tr>{columns.map((column) => <th key={column} className="px-5 py-3 font-medium">{column}</th>)}</tr>
                 </thead>
                 <tbody>
-                  {result.previewApp.sampleRows.map((row, index) => (
+                  {sampleRows.map((row, index) => (
                     <tr key={index} className="border-b border-line/70 last:border-0">
-                      {result.previewApp.columns.map((column) => <td key={column} className="px-5 py-4 text-fg-2">{row[column]}</td>)}
+                      {columns.map((column) => <td key={column} className="px-5 py-4 text-fg-2">{row[column]}</td>)}
                     </tr>
                   ))}
                 </tbody>
@@ -78,8 +86,8 @@ export default async function SharedProjectPage({ params }: { params: Promise<{ 
           <article className="workbench-panel p-5">
             <p className="eyebrow">Build next</p>
             <div className="mt-4 flex flex-col gap-4">
-              {result.demoKit.buildNextChecklist.map((item) => (
-                <div key={item.priority} className="border-l-2 border-accent/50 pl-3">
+              {buildNextChecklist.map((item, index) => (
+                <div key={item.priority ?? index} className="border-l-2 border-accent/50 pl-3">
                   <p className="text-sm font-medium text-fg">{item.task}</p>
                   <p className="mt-1 text-xs text-fg-3">{item.judgingCriteria} · {item.impactScore}</p>
                 </div>
@@ -89,7 +97,7 @@ export default async function SharedProjectPage({ params }: { params: Promise<{ 
         </section>
 
         <footer className="mt-10 flex items-center justify-between border-t border-line pt-5 text-xs text-fg-3">
-          <span>Updated {new Date(project.updated_at).toLocaleDateString()}</span>
+          <span>Updated {formattedUpdatedAt}</span>
           <Link href="/" className="inline-flex items-center gap-2 text-accent hover:text-accent-hover">
             Build your own <ExternalLink className="h-3.5 w-3.5" />
           </Link>

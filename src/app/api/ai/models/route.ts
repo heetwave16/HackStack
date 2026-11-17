@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const authorization = request.headers.get("authorization");
-  const bearer = authorization?.match(/^Bearer ([^\s]+)$/i);
+  const bearer = authorization?.trim().match(/^Bearer\s+(\S+)$/i);
   if (authorization !== null && !bearer) {
     return aiJson(
       {

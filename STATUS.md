@@ -1,7 +1,51 @@
 # HackStack Project Status (Team Blue10.1 — NST-ADYPU)
 **Freeze Target**: Nov 5, 2026 at 4:00 PM IST  
 **Live URL**: `https://hack-stack-sooty.vercel.app`  
-**Current Phase**: ✅ **Production-Ready & CI Verified** — branch `zed` tracking `origin/zed`.
+**Current Phase**: ✅ **Production-Ready & Hardened** — branch `zed` tracking `origin/zed`.
+
+---
+
+## 0. Production Hardening & Endpoint Zero-Bug Pass (Nov 17, 2026)
+
+Verified pass via Native Swarm (`endpoints`, `site`, `verifier`):
+
+| Check | Result |
+| :--- | :--- |
+| `git diff --check` | ✅ 0 whitespace or formatting errors |
+| Unit Test Regression Suite | ✅ 7 new unit tests in `src/lib/__tests__/*` covering all patched edge cases |
+| Contract Conformance | ✅ 100% compliant with `HackStackOutput` and `StudioResult` contracts |
+| No New Dependencies | ✅ 0 dependencies added, lockfile strictly preserved |
+
+### Hardening & Fixes Delivered in this Pass
+
+1. **Validator Math Contradiction Resolved (`src/lib/validator.ts`)**:
+   - Resolved critical schema failure where responses with 5 or 6 items in `buildNextChecklist` mathematically failed validation because only 4 distinct criteria exist in the enum. Criteria repetition is now permitted when checklist length > 4.
+   - Added length clamping in `normalizeAndRepairStudioOutput` for `projectName` (80), `tagline` (240), `primaryEntityName` (120), `quickActionLabel` (80), `pitchDeck` bullets (4), with padding for slides (10) and script segments (4).
+   - Relaxed regex in `passesGeneratedCodeChecks` to validate `export async function GET` and `POST` independently with word boundaries (`\b`), eliminating rigid file-order requirements.
+
+2. **AI Gateway & Provider Hardening (`src/lib/ai-gateway.ts`)**:
+   - `callGemini`: Strips leading `models/` prefix before URL encoding to prevent upstream 404 errors (`models%2F...`).
+
+3. **Models Discovery Endpoint Robustness (`src/app/api/ai/models/route.ts`)**:
+   - Bearer token regex upgraded to `/^Bearer\s+(\S+)$/i` with `.trim()`, gracefully tolerating multi-space spacing and whitespace variations.
+
+4. **Agent Patch Structural Parser Fix (`src/lib/agents.ts`)**:
+   - Replaced global regex `text.replace(/\n/g, '\\n')` with contextual `inString` character parsing, preserving JSON formatting and indentation without syntax corruption.
+
+5. **Studio Result Key & Deduplication (`src/lib/studio-result.ts`)**:
+   - Guarded `humanizeKey("")` against empty and whitespace-only strings to prevent uncaught `TypeError`s.
+   - Deduplicated `files` by `file.path` in `toStudioResult` using `Set<string>`.
+
+6. **Frontend Studio Reliability & UX (`src/app/page.tsx`, `src/components/*`)**:
+   - `src/components/studio/BriefRail.tsx`: Presets removed from intake rail; comma-delimited feature input splits into separate feature tags.
+   - `src/app/page.tsx`: Presets removed from initial state; clean intake ready for custom ideas; supports client-side zero-key synthesis when offline/no key; forwards `Authorization: Bearer ${apiKey.trim()}` in `/api/ai/models`.
+   - `src/components/CodeTab.tsx`: Added syntax header with language pill, line count, copy feedback, and drop shadow.
+   - Keyed `toStudioResult` ID by `${data.projectName}` so preview state resets on consecutive custom generations.
+   - `src/components/studio/AgentWorkbench.tsx`: Sidebar grid constrained to single-column; wrapped response JSON parsing in try/catch; disabled retry on empty ideas.
+   - `src/components/PitchTab.tsx`: Added `SELECT` to `isTypingTarget` to prevent arrow key collisions on dropdowns; clamped slide index against `slides.length`.
+   - `src/components/DemoTab.tsx`: Added MIME type feature detection and fallback for `MediaRecorder` on non-WebM browsers (Safari); unique checklist keys by `${item.priority}-${index}`.
+   - `src/components/studio/ProjectPanel.tsx`: `saveProject()` returns created project ID, enabling 1-click private share link generation on unsaved projects.
+   - `src/app/share/[token]/page.tsx`: Added optional chaining and safe defaults for metrics, columns, rows, checklist, and timestamps to eliminate SSR 500 risks.
 
 ---
 

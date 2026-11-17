@@ -122,16 +122,26 @@ export const hackStackOutputSchema = z
         message: "script must contain the four required 15-second ranges",
       });
     }
-    if (
-      new Set(
-        value.demoKit.buildNextChecklist.map((item) => item.judgingCriteria),
-      ).size !== value.demoKit.buildNextChecklist.length
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["demoKit", "buildNextChecklist"],
-        message: "checklist criteria must be distinct",
-      });
+    const checklist = value.demoKit.buildNextChecklist;
+    const uniqueCriteria = new Set(
+      checklist.map((item) => item.judgingCriteria),
+    );
+    if (checklist.length <= 4) {
+      if (uniqueCriteria.size !== checklist.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["demoKit", "buildNextChecklist"],
+          message: "checklist criteria must be distinct",
+        });
+      }
+    } else {
+      if (uniqueCriteria.size < 4) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["demoKit", "buildNextChecklist"],
+          message: "checklist must cover all four judging criteria",
+        });
+      }
     }
   });
 
@@ -237,9 +247,22 @@ export function normalizeAndRepairStudioOutput(text: string): unknown {
   }
 
   const output = { ...(parsed as Record<string, unknown>) };
+  if (output.projectName !== undefined) {
+    output.projectName = String(output.projectName).slice(0, 80) || "HackStack Project";
+  }
+  if (output.tagline !== undefined) {
+    output.tagline = String(output.tagline).slice(0, 240) || "Scaffolded with HackStack";
+  }
+
   const previewApp = {
     ...((output.previewApp as Record<string, unknown> | undefined) ?? {}),
   };
+  if (previewApp.primaryEntityName !== undefined) {
+    previewApp.primaryEntityName = String(previewApp.primaryEntityName).slice(0, 120) || "Items";
+  }
+  if (previewApp.quickActionLabel !== undefined) {
+    previewApp.quickActionLabel = String(previewApp.quickActionLabel).slice(0, 80) || "+ Add Item";
+  }
   const rawColumns = Array.isArray(previewApp.columns)
     ? previewApp.columns
     : [];
@@ -281,31 +304,117 @@ export function normalizeAndRepairStudioOutput(text: string): unknown {
   output.previewApp = { ...previewApp, columns, sampleRows };
 
   if (Array.isArray(output.pitchDeck)) {
-    output.pitchDeck = output.pitchDeck.slice(0, 10).map((slide, index) => ({
-      ...((slide && typeof slide === "object" ? slide : {}) as Record<
-        string,
-        unknown
-      >),
-      slideNumber: index + 1,
-    }));
+    const slides = output.pitchDeck.slice(0, 10).map((rawSlide, index) => {
+      const slide = (rawSlide && typeof rawSlide === "object" ? rawSlide : {}) as Record<string, unknown>;
+      const rawBullets = Array.isArray(slide.bullets)
+        ? slide.bullets.map(String).filter((b) => b.trim().length > 0)
+        : [];
+      const bullets = rawBullets.length > 0
+        ? rawBullets.slice(0, 4).map((b) => b.slice(0, 200))
+        : ["Key project highlight"];
+      return {
+        ...slide,
+        slideNumber: index + 1,
+        title: String(slide.title ?? `Slide ${index + 1}`).slice(0, 60) || `Slide ${index + 1}`,
+        headline: String(slide.headline ?? "Project Overview").slice(0, 160) || "Project Overview",
+        bullets,
+        speakerNote: String(slide.speakerNote ?? "Presenter note.").slice(0, 400) || "Presenter note.",
+      };
+    });
+    while (slides.length < 10) {
+      const num = slides.length + 1;
+      slides.push({
+        slideNumber: num,
+        title: `Milestone ${num}`,
+        headline: `Project Milestone ${num}`,
+        bullets: ["Core implementation detail"],
+        speakerNote: "Walk through key architecture points.",
+      });
+    }
+    output.pitchDeck = slides;
   }
+
   const demoKit =
     output.demoKit && typeof output.demoKit === "object"
       ? { ...(output.demoKit as Record<string, unknown>) }
       : undefined;
-  if (demoKit && Array.isArray(demoKit.scriptSegments)) {
-    demoKit.scriptSegments = demoKit.scriptSegments
-      .slice(0, 4)
-      .map((segment, index) => ({
-        ...((segment && typeof segment === "object" ? segment : {}) as Record<
-          string,
-          unknown
-        >),
-        timeRange: normalizeTimeRange(
-          index,
-          (segment as Record<string, unknown> | undefined)?.timeRange,
-        ),
-      }));
+  if (demoKit) {
+    if (Array.isArray(demoKit.scriptSegments)) {
+      const segments = demoKit.scriptSegments
+        .slice(0, 4)
+        .map((segment, index) => ({
+          ...((segment && typeof segment === "object" ? segment : {}) as Record<
+            string,
+            unknown
+          >),
+          timeRange: normalizeTimeRange(
+            index,
+            (segment as Record<string, unknown> | undefined)?.timeRange,
+          ),
+        }));
+      const expectedRanges = ["0:00 - 0:15", "0:15 - 0:30", "0:30 - 0:45", "0:45 - 1:00"];
+      while (segments.length < 4) {
+        const index = segments.length;
+        segments.push({
+          timeRange: expectedRanges[index],
+          visualAction: "Walk through key product features and architecture.",
+          voiceover: "Here is the key workflow for this milestone.",
+        });
+      }
+      demoKit.scriptSegments = segments;
+    }
+
+    if (Array.isArray(demoKit.buildNextChecklist)) {
+      const criteriaList: Array<"Product Thinking" | "Innovation" | "Use of AI" | "Feasibility"> = [
+        "Product Thinking",
+        "Innovation",
+        "Use of AI",
+        "Feasibility",
+      ];
+      const items = demoKit.buildNextChecklist.slice(0, 6).map((rawItem, index) => {
+        const item = (rawItem && typeof rawItem === "object" ? rawItem : {}) as Record<string, unknown>;
+        const rawCriteria = String(item.judgingCriteria ?? "");
+        const judgingCriteria = criteriaList.includes(rawCriteria as typeof criteriaList[number])
+          ? rawCriteria
+          : criteriaList[index % criteriaList.length];
+        return {
+          ...item,
+          priority: typeof item.priority === "number" && item.priority > 0 ? Math.floor(item.priority) : index + 1,
+          task: String(item.task ?? `Priority task ${index + 1}`).slice(0, 200) || `Priority task ${index + 1}`,
+          judgingCriteria,
+          impactScore: String(item.impactScore ?? "High").slice(0, 50) || "High",
+        };
+      });
+      while (items.length < 4) {
+        const index = items.length;
+        const criterion = criteriaList[index];
+        items.push({
+          priority: index + 1,
+          task: `Expand test and implementation coverage for ${criterion}`,
+          judgingCriteria: criterion,
+          impactScore: "High",
+        });
+      }
+      // Ensure all 4 criteria are present if length >= 4
+      const presentCriteria = new Set(items.map((it) => it.judgingCriteria));
+      for (const [missingIndex, criterion] of criteriaList.entries()) {
+        if (!presentCriteria.has(criterion)) {
+          // Replace an item that has a duplicate criterion
+          const duplicateIndex = items.findIndex((it, idx) =>
+            items.some((other, oIdx) => oIdx !== idx && other.judgingCriteria === it.judgingCriteria),
+          );
+          if (duplicateIndex >= 0) {
+            items[duplicateIndex].judgingCriteria = criterion;
+            presentCriteria.add(criterion);
+          } else if (items.length > missingIndex) {
+            items[missingIndex].judgingCriteria = criterion;
+            presentCriteria.add(criterion);
+          }
+        }
+      }
+      demoKit.buildNextChecklist = items;
+    }
+
     output.demoKit = demoKit;
   }
 
@@ -332,9 +441,9 @@ export function passesGeneratedCodeChecks(data: unknown): boolean {
       output.codebase.prismaSchema,
     ) &&
     /\bmodel\s+\w+/i.test(output.codebase.prismaSchema) &&
-    /NextResponse[\s\S]*export\s+async\s+function\s+GET[\s\S]*export\s+async\s+function\s+POST/.test(
-      output.codebase.apiRouteCode,
-    ) &&
+    /NextResponse/.test(output.codebase.apiRouteCode) &&
+    /export\s+async\s+function\s+GET\b/.test(output.codebase.apiRouteCode) &&
+    /export\s+async\s+function\s+POST\b/.test(output.codebase.apiRouteCode) &&
     /from\s+['"]vitest['"][\s\S]*describe[\s\S]*expect/.test(
       output.codebase.starterTestCode,
     )

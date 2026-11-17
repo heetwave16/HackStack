@@ -310,4 +310,20 @@ describe("direct gateway endpoint and Gemini credential isolation", () => {
       expect(options?.body ?? "").not.toContain(CALLER_KEY);
     },
   );
+
+  it("strips leading models/ prefix for Gemini requests", async () => {
+    const gemini = PROVIDERS[2];
+    fetchMock.mockResolvedValueOnce(
+      Response.json(contentBody("gemini", OUTPUT)),
+    );
+    await expect(
+      generateWithGateway(request(gemini, { model: "models/gemini-2.5-flash" })),
+    ).resolves.toBe(OUTPUT);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [input] = fetchMock.mock.calls[0];
+    const url = new URL(String(input));
+    expect(url.pathname).toBe(
+      "/v1beta/models/gemini-2.5-flash:generateContent",
+    );
+  });
 });

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeAndRepairStudioOutput,
+  passesGeneratedCodeChecks,
   validateHackStackOutput,
 } from "@/lib/validator";
+import { FALLBACK_HACKSTACK_RESULT } from "@/types/hackstack";
 
 describe("normalizeAndRepairStudioOutput", () => {
   it.each([
@@ -149,5 +151,84 @@ describe("normalizeAndRepairStudioOutput", () => {
     );
 
     expect(validateHackStackOutput(repaired).success).toBe(true);
+  });
+
+  it("validates checklists with 5 and 6 items covering all 4 judging criteria", () => {
+    const base = structuredClone(FALLBACK_HACKSTACK_RESULT);
+
+    // 5-item checklist with one repeated criterion
+    base.demoKit.buildNextChecklist = [
+      { priority: 1, task: "Task 1", judgingCriteria: "Product Thinking", impactScore: "High" },
+      { priority: 2, task: "Task 2", judgingCriteria: "Innovation", impactScore: "High" },
+      { priority: 3, task: "Task 3", judgingCriteria: "Use of AI", impactScore: "High" },
+      { priority: 4, task: "Task 4", judgingCriteria: "Feasibility", impactScore: "High" },
+      { priority: 5, task: "Task 5", judgingCriteria: "Product Thinking", impactScore: "Medium" },
+    ];
+    expect(validateHackStackOutput(base).success).toBe(true);
+
+    // 6-item checklist with two repeated criteria
+    base.demoKit.buildNextChecklist.push({
+      priority: 6,
+      task: "Task 6",
+      judgingCriteria: "Innovation",
+      impactScore: "Low",
+    });
+    expect(validateHackStackOutput(base).success).toBe(true);
+  });
+
+  it("passesGeneratedCodeChecks accepts GET and POST in any order", () => {
+    const output = structuredClone(FALLBACK_HACKSTACK_RESULT);
+
+    // Standard order (GET before POST)
+    expect(passesGeneratedCodeChecks(output)).toBe(true);
+
+    // Reversed order (POST before GET)
+    output.codebase.apiRouteCode = `
+import { NextResponse } from 'next/server';
+
+export async function POST(request: Request) {
+  return NextResponse.json({ status: 'ok' }, { status: 201 });
+}
+
+export async function GET() {
+  return NextResponse.json({ items: [] });
+}
+    `.trim();
+    expect(passesGeneratedCodeChecks(output)).toBe(true);
+
+    // Missing POST should fail
+    output.codebase.apiRouteCode = `
+import { NextResponse } from 'next/server';
+export async function GET() { return NextResponse.json({}); }
+    `.trim();
+    expect(passesGeneratedCodeChecks(output)).toBe(false);
+  });
+
+  it("clamps overlong strings and pads missing slides and demo segments", () => {
+    const repaired = normalizeAndRepairStudioOutput(
+      JSON.stringify({
+        projectName: "A".repeat(120),
+        tagline: "B".repeat(300),
+        pitchDeck: [
+          { slideNumber: 1, title: "Title 1", headline: "Headline 1", bullets: ["b1", "b2", "b3", "b4", "b5"], speakerNote: "Note 1" },
+        ],
+        demoKit: {
+          scriptSegments: [
+            { timeRange: "0-15s", visualAction: "Action", voiceover: "Voice" },
+          ],
+        },
+      }),
+    ) as {
+      projectName: string;
+      tagline: string;
+      pitchDeck: Array<{ slideNumber: number; bullets: string[] }>;
+      demoKit: { scriptSegments: Array<{ timeRange: string }> };
+    };
+
+    expect(repaired.projectName.length).toBeLessThanOrEqual(80);
+    expect(repaired.tagline.length).toBeLessThanOrEqual(240);
+    expect(repaired.pitchDeck).toHaveLength(10);
+    expect(repaired.pitchDeck[0].bullets.length).toBeLessThanOrEqual(4);
+    expect(repaired.demoKit.scriptSegments).toHaveLength(4);
   });
 });

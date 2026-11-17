@@ -28,6 +28,7 @@ export function describeFailure(error: unknown): string {
         return `the request was rejected (${error.message})`;
       case 401:
       case 403:
+      case 422:
         return error.message;
       case 429:
         return "the provider quota or rate limit is used up";

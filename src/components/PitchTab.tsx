@@ -24,7 +24,13 @@ function buildDeckMarkdown(data: HackStackOutput): string {
 
 function isTypingTarget(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null;
-  return !!element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.isContentEditable);
+  return (
+    !!element &&
+    (element.tagName === 'INPUT' ||
+      element.tagName === 'TEXTAREA' ||
+      element.tagName === 'SELECT' ||
+      element.isContentEditable)
+  );
 }
 
 const NAV_BUTTON =
@@ -56,6 +62,10 @@ export default function PitchTab({ data }: PitchTabProps) {
   }, [data.projectName]);
 
   useEffect(() => {
+    setCurrentIndex((prev) => Math.min(prev, Math.max(0, slides.length - 1)));
+  }, [slides.length]);
+
+  useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(document.fullscreenElement === canvasRef.current);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
@@ -84,7 +94,8 @@ export default function PitchTab({ data }: PitchTabProps) {
     URL.revokeObjectURL(url);
   };
 
-  const current: PitchSlide | undefined = slides[currentIndex];
+  const clampedIndex = Math.min(currentIndex, lastIndex);
+  const current: PitchSlide | undefined = slides[clampedIndex];
   if (!current) {
     return <p className="text-sm text-fg-3">No slides yet. Generate a studio to build the deck.</p>;
   }
@@ -155,26 +166,28 @@ export default function PitchTab({ data }: PitchTabProps) {
         <button
           type="button"
           onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
-          disabled={currentIndex === 0}
+          disabled={clampedIndex === 0}
           className={NAV_BUTTON}
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          Previous
+          <span>Previous</span>
+          <kbd className="hidden font-mono text-[10px] text-fg-3 sm:inline">←</kbd>
         </button>
         <button
           type="button"
           onClick={() => setCurrentIndex((prev) => Math.min(lastIndex, prev + 1))}
-          disabled={currentIndex === lastIndex}
+          disabled={clampedIndex === lastIndex}
           className={NAV_BUTTON}
         >
-          Next
+          <span>Next</span>
+          <kbd className="hidden font-mono text-[10px] text-fg-3 sm:inline">→</kbd>
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
 
       <nav aria-label="Jump to slide" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {slides.map((slide, index) => {
-          const isActive = index === currentIndex;
+          const isActive = index === clampedIndex;
           return (
             <button
               key={slide.slideNumber}

@@ -72,13 +72,15 @@ const ACRONYMS = new Set(['id', 'upi', 'eta', 'isbn', 'url', 'api', 'ai', 'gps']
 
 /** "etaMinutes" -> "ETA minutes", "hostel_wing" -> "Hostel wing". */
 export function humanizeKey(key: string): string {
-  const words = key
+  const trimmed = key.trim();
+  if (!trimmed) return key;
+  const words = trimmed
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/[_-]+/g, ' ')
     .trim()
     .split(/\s+/)
     .map((w) => (ACRONYMS.has(w.toLowerCase()) ? w.toUpperCase() : w.toLowerCase()));
-  if (words.length === 0) return key;
+  if (words.length === 0 || !words[0]) return key;
   if (!ACRONYMS.has(words[0].toLowerCase())) words[0] = words[0][0].toUpperCase() + words[0].slice(1);
   return words.join(' ');
 }
@@ -152,14 +154,22 @@ export function toStudioResult(output: HackStackOutput, opts: ToStudioOptions): 
       label: (previewApp.quickActionLabel || `Add ${humanizeKey(previewApp.primaryEntityName)}`).replace(/^\+\s*/, ''),
       fields
     },
-    files: [
-      ...CODE_FILES.map(([k, path, language]) => ({ path, language, content: output.codebase[k] })),
-      ...(output.codebase.additionalFiles ?? []).map((file) => ({
-        path: file.path,
-        language: file.language ?? file.path.split('.').pop() ?? 'text',
-        content: file.content
-      }))
-    ],
+    files: (() => {
+      const allFiles = [
+        ...CODE_FILES.map(([k, path, language]) => ({ path, language, content: output.codebase[k] })),
+        ...(output.codebase.additionalFiles ?? []).map((file) => ({
+          path: file.path,
+          language: file.language ?? file.path.split('.').pop() ?? 'text',
+          content: file.content
+        }))
+      ];
+      const seen = new Set<string>();
+      return allFiles.filter((file) => {
+        if (seen.has(file.path)) return false;
+        seen.add(file.path);
+        return true;
+      });
+    })(),
     slides: output.pitchDeck.map((s) => ({
       number: s.slideNumber, title: s.title, headline: s.headline, bullets: s.bullets, notes: s.speakerNote
     })),
