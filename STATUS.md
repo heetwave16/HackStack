@@ -38,8 +38,8 @@ Verified pass via Native Swarm (`endpoints`, `site`, `verifier`):
    - Deduplicated `files` by `file.path` in `toStudioResult` using `Set<string>`.
 
 6. **Frontend Studio Reliability & UX (`src/app/page.tsx`, `src/components/*`)**:
-   - `src/components/studio/BriefRail.tsx`: Presets removed from intake rail; comma-delimited feature input splits into separate feature tags.
-   - `src/app/page.tsx`: Presets removed from initial state; clean intake ready for custom ideas; supports client-side zero-key synthesis when offline/no key; forwards `Authorization: Bearer ${apiKey.trim()}` in `/api/ai/models`.
+   - `src/components/studio/BriefRail.tsx`: Presets selectable as optional example shapes; comma-delimited feature input splits into separate feature tags.
+   - `src/app/page.tsx`: Clean initial state ready for custom ideas; `/api/ai/models` queried publicly without Authorization leak; full test suite passing.
    - `src/components/CodeTab.tsx`: Added syntax header with language pill, line count, copy feedback, and drop shadow.
    - Keyed `toStudioResult` ID by `${data.projectName}` so preview state resets on consecutive custom generations.
    - `src/components/studio/AgentWorkbench.tsx`: Sidebar grid constrained to single-column; wrapped response JSON parsing in try/catch; disabled retry on empty ideas.

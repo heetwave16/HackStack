@@ -2,6 +2,7 @@
 
 import { useState, type KeyboardEvent } from 'react';
 import { AlertTriangle, Info, Loader2, Plus, Sparkles, X } from 'lucide-react';
+import type { HackStackPreset } from '../presets';
 import { STACK_OPTIONS } from './models';
 import type { Notice, NoticeTone } from './types';
 import { CONTROL } from './ui';
@@ -27,6 +28,9 @@ interface BriefRailProps {
   onFeaturesChange: (value: string[]) => void;
   isGenerating: boolean;
   onGenerate: () => void;
+  presets?: HackStackPreset[];
+  activePresetName?: string;
+  onPresetSelect?: (preset: HackStackPreset) => void;
   notice: Notice | null;
 }
 
@@ -39,6 +43,9 @@ export default function BriefRail({
   onFeaturesChange,
   isGenerating,
   onGenerate,
+  presets,
+  activePresetName,
+  onPresetSelect,
   notice,
 }: BriefRailProps) {
   const [featureDraft, setFeatureDraft] = useState('');
@@ -141,6 +148,33 @@ export default function BriefRail({
           </button>
         </div>
       </div>
+
+      {presets && presets.length > 0 && onPresetSelect && (
+        <div className="flex flex-col gap-2">
+          <span className="eyebrow">Start from a real shape</span>
+          <ul className="flex flex-col gap-1">
+            {presets.map((preset) => {
+              const isActive = preset.name === activePresetName;
+              return (
+                <li key={preset.id}>
+                  <button
+                    type="button"
+                    onClick={() => onPresetSelect(preset)}
+                    className={`flex w-full items-center justify-between rounded px-2.5 py-1.5 text-left font-mono text-xs transition-colors ${
+                      isActive
+                        ? 'border border-accent/40 bg-accent/10 font-semibold text-accent'
+                        : 'border border-transparent text-fg-3 hover:border-line hover:text-fg'
+                    }`}
+                  >
+                    <span>{preset.name}</span>
+                    <span className="text-[10px] text-fg-3">{preset.stack}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3">
         <button

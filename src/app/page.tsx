@@ -7,6 +7,7 @@ import {
   HackStackOutput,
   ModelConfig,
 } from "@/types/hackstack";
+import { BUILT_IN_PRESETS, type HackStackPreset } from "@/components/presets";
 import { synthesizeCustomHackStack } from "@/components/offline-synth";
 
 import PreviewTab from "@/components/PreviewTab";
@@ -123,9 +124,6 @@ export default function HackStackStudioPage() {
     const controller = new AbortController();
     void fetch("/api/ai/models", {
       signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${apiKey.trim()}`,
-      },
     })
       .then(async (response) => {
         if (!response.ok) return;
@@ -148,6 +146,32 @@ export default function HackStackStudioPage() {
     return () => controller.abort();
   }, [apiKey, selectedModelOption?.provider]);
 
+  const activePreset = useMemo(
+    () => BUILT_IN_PRESETS.find((p) => p.name === data.projectName),
+    [data.projectName],
+  );
+
+  const applyPreset = useCallback((preset: HackStackPreset) => {
+    setIdeaText(preset.ideaText);
+    setStackSelection(preset.stack);
+    setFeatures(
+      preset.features
+        .split(",")
+        .map((f) => f.trim())
+        .filter(Boolean),
+    );
+    setData(preset.output);
+    setProjectId(null);
+    setResultSource("preset");
+    setResultModelLabel(preset.output.validation.modelUsed);
+    setNotice(null);
+    setRunLog([
+      { id: "brief", label: `Preset loaded: ${preset.name}`, status: "done" },
+      { id: "model", label: "Golden sample verified", status: "done" },
+      { id: "check", label: "Schema validated", status: "done" },
+    ]);
+  }, []);
+
   const handleGenerate = useCallback(async () => {
     if (isGenerating) return;
 
@@ -161,25 +185,9 @@ export default function HackStackStudioPage() {
     }
 
     if (!apiKey.trim()) {
-      // Zero-key mode: synthesize full schema-compliant studio output client-side for their custom idea
-      const synthesized = synthesizeCustomHackStack({
-        idea,
-        stack: stackSelection,
-        features,
-      });
-      setData(synthesized);
-      setProjectId(null);
-      setResultSource("offline");
-      setResultModelLabel("Local Synthesizer (Zero-Key Mode)");
-      setLatencyMs(45);
-      setRunLog([
-        { id: "brief", label: `Brief read: ${features.length} features`, status: "done" },
-        { id: "model", label: "Synthesized custom studio from your brief", status: "done", ms: 45 },
-        { id: "check", label: "Schema validated & ready to eject", status: "done" },
-      ]);
       setNotice({
-        tone: "info",
-        text: `Generated custom studio for "${synthesized.projectName}". Add an API key in the top bar to run cloud AI models.`,
+        tone: "error",
+        text: "Enter your provider API key above to use AI. Your current work is unchanged; examples do not require a key.",
       });
       return;
     }
@@ -326,8 +334,8 @@ export default function HackStackStudioPage() {
           text: `Live · ${resultModelLabel ?? selectedModelOption.label} · ${formatDuration(latencyMs ?? 0)}`,
         }
       : resultSource === "offline"
-        ? { tone: "offline", text: resultModelLabel ?? "Ready · Local engine" }
-        : { tone: "offline", text: "Studio ready" };
+        ? { tone: "offline", text: resultModelLabel ?? "Offline build · no model answered" }
+        : { tone: "preset", text: "Preset sample · no model call" };
 
   const studioResult = useMemo(
     () =>
@@ -451,6 +459,9 @@ export default function HackStackStudioPage() {
               onFeaturesChange={setFeatures}
               isGenerating={isGenerating}
               onGenerate={() => void handleGenerate()}
+              presets={BUILT_IN_PRESETS}
+              activePresetName={activePreset?.name}
+              onPresetSelect={applyPreset}
               notice={notice}
             />
             <RunLog steps={runLog} />
